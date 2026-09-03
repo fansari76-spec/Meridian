@@ -8,19 +8,37 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import flightsRouter from "./routes/flights.js";
+import staysRouter from "./routes/stays.js";
+import itineraryRouter from "./routes/itinerary.js";
 
 const app = express();
-app.use(cors());
+
+// In production, restrict CORS to your deployed frontend URL (set
+// FRONTEND_URL as an env var on Render). Falls back to allowing
+// everything in local development.
+const allowedOrigin = process.env.FRONTEND_URL || "*";
+app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 
 app.use("/api/flights", flightsRouter);
+app.use("/api/stays", staysRouter);
+app.use("/api/itinerary", itineraryRouter);
 
 app.get("/health", (req, res) => {
-  res.json({ ok: true, mode: process.env.DUFFEL_API_KEY ? "live" : "demo" });
+  res.json({
+    ok: true,
+    flights: process.env.DUFFEL_API_KEY ? "live" : "demo",
+    stays: process.env.GOOGLE_PLACES_API_KEY ? "live" : "demo",
+    itinerary: process.env.ANTHROPIC_API_KEY ? "live" : "demo",
+  });
 });
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  const mode = process.env.DUFFEL_API_KEY ? "LIVE (Duffel key found)" : "DEMO (no DUFFEL_API_KEY set — using mock fares)";
-  console.log(`Meridian API listening on http://localhost:${PORT} — mode: ${mode}`);
+  const flags = [
+    process.env.DUFFEL_API_KEY ? "flights:LIVE" : "flights:demo",
+    process.env.GOOGLE_PLACES_API_KEY ? "stays:LIVE" : "stays:demo",
+    process.env.ANTHROPIC_API_KEY ? "itinerary:LIVE" : "itinerary:demo",
+  ];
+  console.log(`Meridian API listening on http://localhost:${PORT} — ${flags.join(", ")}`);
 });

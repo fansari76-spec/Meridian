@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import AuthButtons from "./components/AuthButtons.jsx";
 import { PILGRIMAGE_SITES } from "./data/pilgrimage.js";
-import { generateItinerary } from "./lib/itinerary.js";
 import { calculateBudget } from "./lib/budget.js";
 import { useFlightSearch } from "./lib/useFlightSearch.js";
+import { useStaySearch } from "./lib/useStaySearch.js";
+import { useItinerary } from "./lib/useItinerary.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 
@@ -13,12 +14,6 @@ const TABS = [
   { id: "itinerary", label: "Itinerary" },
   { id: "pilgrimage", label: "Pilgrimage" },
   { id: "account", label: "Account" },
-];
-
-const DEMO_STAYS = [
-  { id: "s1", source: "Hotel", name: "Casa Alfama Boutique", area: "Alfama", distance: 0.4, rating: 4.8, safety: 9.1, price: 142, photo: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=500&q=60", url: "https://www.booking.com" },
-  { id: "s2", source: "Airbnb", name: "Sunlit Loft, Príncipe Real", area: "Príncipe Real", distance: 0.9, rating: 4.95, safety: 8.8, price: 118, photo: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500&q=60", url: "https://www.airbnb.com" },
-  { id: "s3", source: "Vrbo", name: "Riverside 2BR with Terrace", area: "Belém", distance: 2.1, rating: 4.7, safety: 9.4, price: 164, photo: "https://images.unsplash.com/photo-1541971875076-8f970d573be6?w=500&q=60", url: "https://www.vrbo.com" },
 ];
 
 const INTEREST_OPTIONS = [
@@ -44,7 +39,7 @@ export default function App() {
   });
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [selectedFlexOffset, setSelectedFlexOffset] = useState(null);
-  const [selectedStay, setSelectedStay] = useState(DEMO_STAYS[0]);
+  const [selectedStay, setSelectedStay] = useState(null);
   const [staySortBy, setStaySortBy] = useState("rating");
   const [cuisine, setCuisine] = useState("Halal");
   const [interests, setInterests] = useState(["slow-mornings", "food-focused", "live-music"]);
@@ -54,6 +49,8 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState(null);
 
   const { search, loading, error, results } = useFlightSearch();
+  const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
+  const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI } = useItinerary();
 
   useEffect(() => {
     const unsub = subscribeToAuthChanges((u) => setUser(u));
@@ -63,6 +60,37 @@ export default function App() {
   useEffect(() => {
     if (user) loadTrips(user.uid).then(setTrips);
   }, [user]);
+
+  // Fetch stays once on load and whenever the destination changes.
+  useEffect(() => {
+    searchStays(form.destination);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.destination]);
+
+  // Regenerate the itinerary whenever destination, interests, cuisine,
+  // or trip length change — debounced slightly so rapid chip-toggling
+  // doesn't fire a request per click.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      generateItineraryAI({
+        destination: form.destination,
+        days: Math.min(nightsFromDates(form.departDate, form.returnDate), 5),
+        interests,
+        cuisine: cuisine || null,
+        faithTradition: selectedFaith?.name || null,
+      });
+    }, 500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.destination, interests, cuisine, form.departDate, form.returnDate, selectedFaith]);
+
+  // Once stays load (demo or real), default-select the first one so
+  // the budget calculator has something to work with immediately.
+  useEffect(() => {
+    if (fetchedStays?.length && !selectedStay) {
+      setSelectedStay(fetchedStays[0]);
+    }
+  }, [fetchedStays, selectedStay]);
 
   async function handleSearch(e) {
     e.preventDefault();
@@ -77,11 +105,7 @@ export default function App() {
     setInterests((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  const nights = useMemo(() => {
-    const d1 = new Date(form.departDate);
-    const d2 = new Date(form.returnDate);
-    return Math.max(1, Math.round((d2 - d1) / 86400000));
-  }, [form.departDate, form.returnDate]);
+  const nights = useMemo(() => nightsFromDates(form.departDate, form.returnDate), [form.departDate, form.returnDate]);
 
   const flightPricePerPerson = selectedFlight
     ? selectedFlight.totalAmount / (form.travelers || 1)
@@ -99,24 +123,15 @@ export default function App() {
   );
 
   const sortedStays = useMemo(() => {
-    const list = [...DEMO_STAYS];
-    if (staySortBy === "rating") list.sort((a, b) => b.rating - a.rating);
-    if (staySortBy === "price") list.sort((a, b) => a.price - b.price);
-    if (staySortBy === "distance") list.sort((a, b) => a.distance - b.distance);
-    if (staySortBy === "safety") list.sort((a, b) => b.safety - a.safety);
+    const list = [...(fetchedStays || [])];
+    if (staySortBy === "rating") list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    if (staySortBy === "price") list.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+    if (staySortBy === "distance") list.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+    if (staySortBy === "safety") list.sort((a, b) => (b.safety ?? 0) - (a.safety ?? 0));
     return list;
-  }, [staySortBy]);
+  }, [staySortBy, fetchedStays]);
 
-  const itineraryPlan = useMemo(
-    () =>
-      generateItinerary({
-        days: Math.min(nights, 5),
-        interests,
-        cuisine: cuisine?.toLowerCase().replace(" ", "-") || null,
-        startDate: form.departDate,
-      }),
-    [nights, interests, cuisine, form.departDate]
-  );
+  const itineraryPlan = aiPlan || [];
 
   const cheapestFlex = useMemo(() => {
     if (!results?.flexResults?.length) return null;
@@ -282,24 +297,26 @@ export default function App() {
             <select value={staySortBy} onChange={(e) => setStaySortBy(e.target.value)}>
               <option value="rating">Sort: Highest rated</option>
               <option value="price">Sort: Price, low to high</option>
-              <option value="distance">Sort: Closest to center</option>
-              <option value="safety">Sort: Safest neighborhood</option>
+              {sortedStays.some((s) => s.distance != null) && <option value="distance">Sort: Closest to center</option>}
+              {sortedStays.some((s) => s.safety != null) && <option value="safety">Sort: Safest neighborhood</option>}
             </select>
           </div>
+          {staysUsedMock && <div className="demo-note" style={{ marginBottom: 16 }}>Demo listings — add GOOGLE_PLACES_API_KEY in server/.env for real hotels. See README.md.</div>}
+          {staysLoading && <p style={{ color: "#5A5F68", fontSize: "0.9rem" }}>Searching hotels near {form.destination}…</p>}
           <div className="stay-grid">
             {sortedStays.map((s) => (
               <div className="stay-card" key={s.id} style={{ outline: selectedStay?.id === s.id ? "2px solid var(--teal)" : "none" }}>
-                <div className="stay-photo" style={{ backgroundImage: `url(${s.photo})` }} />
+                <div className="stay-photo" style={{ backgroundImage: `url(${s.photo || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&q=60"})` }} />
                 <div className="stay-body">
                   <div className="stay-source">{s.source}</div>
                   <div className="stay-name">{s.name}</div>
-                  <div className="stay-meta">{s.area} · {s.distance} mi from center</div>
+                  <div className="stay-meta">{s.area}{s.distance != null ? ` · ${s.distance} mi from center` : ""}</div>
                   <div className="stay-scores">
-                    <div className="score">★ {s.rating}</div>
-                    <div className="score">Safety {s.safety}</div>
+                    {s.rating != null && <div className="score">★ {s.rating}{s.ratingCount ? ` (${s.ratingCount})` : ""}</div>}
+                    {s.safety != null && <div className="score">Safety {s.safety}</div>}
                   </div>
                   <div className="stay-foot">
-                    <div className="stay-price">${s.price} <span>/night</span></div>
+                    <div className="stay-price">${s.price} <span>/night{staysUsedMock ? "" : " (est.)"}</span></div>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => setSelectedStay(s)}>
                         {selectedStay?.id === s.id ? "Selected" : "Use this"}
@@ -369,7 +386,7 @@ export default function App() {
       {/* ===================== ITINERARY ===================== */}
       <section className="panel wrap" style={{ display: activeTab === "itinerary" ? "block" : "none" }}>
         <div className="panel-head">
-          <div><h2>Your day-by-day plan</h2><p>Toggle what you like — the plan below rebuilds instantly.</p></div>
+          <div><h2>Your day-by-day plan</h2><p>Toggle what you like — the plan below rebuilds automatically.</p></div>
         </div>
         <div className="chip-grid" style={{ marginBottom: 30 }}>
           {INTEREST_OPTIONS.map((opt) => (
@@ -378,12 +395,14 @@ export default function App() {
             </div>
           ))}
         </div>
+        {!usedAI && itineraryPlan.length > 0 && (
+          <div className="demo-note" style={{ marginBottom: 20 }}>Template plan — add ANTHROPIC_API_KEY in server/.env for AI-generated, destination-specific itineraries. See README.md.</div>
+        )}
+        {itineraryLoading && <p style={{ color: "#5A5F68", fontSize: "0.9rem", marginBottom: 16 }}>Building your {form.destination} itinerary…</p>}
         <div className="itinerary">
           {itineraryPlan.map((day) => (
             <div className="day-block" key={day.dayNumber}>
-              <div className="day-title">
-                Day {day.dayNumber} {day.date && <span className="sub">— {day.date}</span>}
-              </div>
+              <div className="day-title">Day {day.dayNumber}</div>
               {day.activities.map((a, i) => (
                 <div className="activity" key={i}>
                   <div className="activity-time">{a.time}</div>
@@ -486,4 +505,10 @@ function formatDuration(iso8601Duration) {
   const h = match[1] || 0;
   const m = match[2] || 0;
   return `${h}h ${m}m`;
+}
+
+function nightsFromDates(departDate, returnDate) {
+  const d1 = new Date(departDate);
+  const d2 = new Date(returnDate);
+  return Math.max(1, Math.round((d2 - d1) / 86400000));
 }
