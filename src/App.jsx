@@ -290,7 +290,7 @@ export default function App() {
           <div className="panel-head" style={{ marginBottom: 20 }}>
             <div>
               <h2>Places to stay</h2>
-              <p>Demo listings across hotel, Airbnb, and Vrbo styles — sort to see ranking update live.</p>
+              <p>{staysUsedMock ? "Demo listings across hotel, Airbnb, and Vrbo styles — sort to see ranking update live." : `Real hotels near ${form.destination}, ranked by rating — prices are estimates until a rates provider is connected.`}</p>
             </div>
           </div>
           <div className="filter-bar">
