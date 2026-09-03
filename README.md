@@ -1,0 +1,90 @@
+# Meridian — full app
+
+This is a complete, runnable app: React frontend + Express backend,
+covering sign-in, flight search, hotel/stay browsing, a live budget
+calculator, a rule-based itinerary generator, and the pilgrimage
+category. It works out of the box in **demo mode** (realistic mock
+data, no API keys needed) and upgrades to **live mode** the moment you
+add your own free Firebase and Duffel keys — no code changes required,
+just environment variables.
+
+## Run it (demo mode, 2 minutes, no signup needed)
+
+You'll need [Node.js](https://nodejs.org) installed (v18+).
+
+**Terminal 1 — backend:**
+```bash
+cd server
+npm install
+npm run dev
+```
+You should see: `Meridian API listening on http://localhost:4000 — mode: DEMO`
+
+**Terminal 2 — frontend:**
+```bash
+npm install
+npm run dev
+```
+Open the URL it prints (usually `http://localhost:5173`).
+
+At this point: search works (mock fares that vary sensibly by date),
+hotel sort/filter works, budget calculates live, itinerary rebuilds as
+you toggle interests, pilgrimage tab is fully populated, and sign-in
+shows a clear "demo mode" note instead of crashing.
+
+## Upgrade to live mode
+
+### Real flight search (Duffel)
+1. Sign up free at [duffel.com](https://duffel.com), grab a **test**
+   API key from the dashboard (no approval wait — test mode is
+   instant and returns realistic offers).
+2. Create `server/.env` (copy `.env.example`), set `DUFFEL_API_KEY=`.
+3. Restart the backend — the console will now say `mode: LIVE`.
+
+### Real sign-in + saved trips (Firebase)
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com) (free).
+2. Authentication → Sign-in method → enable **Google**, **Apple**
+   (this is what powers the "iCloud" button), and add **Yahoo** as a
+   generic OpenID Connect provider.
+3. Firestore Database → Create database (start in test mode for
+   development).
+4. Project settings → General → "Your apps" → copy the config values
+   into a `.env.local` file in the project root (copy `.env.example`).
+5. Restart the frontend. Sign-in buttons now open real provider
+   popups, and "Save this trip" writes to Firestore instead of memory.
+
+## What's genuinely complete vs. what's next
+
+**Complete and working today:**
+- Flight search with sort/filter and a real flexible-date scan
+- Hotel/Airbnb/Vrbo-styled results with working sort (rating, price, distance, safety)
+- Budget calculator, computed live from your actual selections
+- Rule-based itinerary generator, rebuilds instantly from selected interests + cuisine
+- Pilgrimage category, all 6 traditions with real timing/logistics/dietary content
+- Auth (Google/Apple/Yahoo) and trip-saving — real once Firebase is connected, stubbed gracefully before that
+
+**Deliberately not built yet (see the earlier roadmap doc for why):**
+- Native 1-click checkout — "book" buttons link out to the airline/hotel's own site
+- Live Airbnb/Vrbo inventory — no public booking API exists for either; v1 uses styled demo listings you can later wire to Booking.com's affiliate API for real hotel data
+- Deploying this to a live domain — that's a `vite build` + hosting step (Vercel or Firebase Hosting both work well) once you're ready to go live
+
+## Project structure
+
+```
+src/
+  App.jsx                 Main app — all 5 tabs, all state
+  index.css                 Full design system
+  lib/
+    firebase.js              Auth init, demo-mode fallback
+    trips.js                  Save/load trips (Firestore or in-memory)
+    useFlightSearch.js        Frontend hook for the search API
+    itinerary.js               Rule-based day-plan generator
+    budget.js                   Budget math
+  components/
+    AuthButtons.jsx           Sign-in buttons
+  data/
+    pilgrimage.js               The 6 pilgrimage destination entries
+server/
+  index.js                  Express entry point
+  routes/flights.js          Search route — live Duffel or demo fallback
+```
