@@ -21,7 +21,6 @@ import { sha256Hex } from "./lib/hash.js";
 
 const TABS = [
   { id: "search", label: "Flights & Stays" },
-  { id: "preferences", label: "Preferences" },
   { id: "budget", label: "Budget" },
   { id: "itinerary", label: "Itinerary" },
   { id: "pilgrimage", label: "Pilgrimage" },
