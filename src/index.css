@@ -126,6 +126,15 @@ section.panel:last-of-type{border-bottom:none;}
 .briefing-title{font-weight:700; font-size:0.92rem; margin-bottom:3px;}
 .briefing-content{font-size:0.87rem; color:#3A3F49; line-height:1.5;}
 
+.weather-strip{display:flex; gap:10px; overflow-x:auto; margin-bottom:24px; padding-bottom:6px; align-items:stretch;}
+.weather-day{flex:0 0 auto; min-width:92px; border:1px solid var(--line); border-radius:12px; padding:12px 10px; text-align:center; background:var(--white);}
+.weather-day--rain{border-color:var(--gold); background:#FBF4E6;}
+.weather-date{font-size:0.72rem; color:#5A5F68; font-weight:600;}
+.weather-icon{font-size:1.4rem; margin:4px 0;}
+.weather-temp{font-size:0.8rem; font-weight:600;}
+.weather-rain-note{font-size:0.68rem; color:var(--gold); font-weight:700; margin-top:3px;}
+.weather-adjust-btn{flex:0 0 auto; align-self:center; margin-left:6px;}
+
 @media (max-width:700px){
   .top-picks-grid{grid-template-columns:1fr;}
 }

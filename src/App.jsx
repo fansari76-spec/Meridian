@@ -8,6 +8,7 @@ import { useItinerary } from "./lib/useItinerary.js";
 import { useConcierge } from "./lib/useConcierge.js";
 import { usePacking } from "./lib/usePacking.js";
 import { useBriefing } from "./lib/useBriefing.js";
+import { useWeather } from "./lib/useWeather.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
@@ -136,6 +137,23 @@ function groupByPeriod(activities) {
   return PERIOD_ORDER.filter((key) => buckets[key].length > 0).map((key) => [key, buckets[key]]);
 }
 
+// Simplified WMO weather-code groups (Open-Meteo's convention) into an
+// icon + short label — full code reference isn't needed for a glance view.
+function weatherIcon(code) {
+  if (code === 0) return "☀️";
+  if (code <= 3) return "⛅";
+  if (code <= 48) return "🌫️";
+  if (code <= 67) return "🌧️";
+  if (code <= 77) return "❄️";
+  if (code <= 82) return "🌦️";
+  if (code >= 95) return "⛈️";
+  return "🌤️";
+}
+
+function formatShortDate(iso) {
+  return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("search");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -196,6 +214,7 @@ export default function App() {
   const { generate: generatePacking, loading: packingLoading, categories: packingCategories, usedAI: packingUsedAI, warning: packingWarning } = usePacking();
   const [packedItems, setPackedItems] = useState({}); // "category::item" -> bool
   const { generate: generateBriefing, loading: briefingLoading, sections: briefingSections, usedAI: briefingUsedAI, warning: briefingWarning } = useBriefing();
+  const { fetchForecast, loading: weatherLoading, days: weatherDays, available: weatherAvailable, reason: weatherReason } = useWeather();
   const [chatPlan, setChatPlan] = useState(null); // itinerary overrides made via the concierge chat
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
@@ -270,6 +289,13 @@ export default function App() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.destination, form.departDate, form.returnDate, form.travelers]);
+
+  // Weather is free (no API key), so fetch it eagerly whenever the
+  // destination or dates change — same trigger as the stays search.
+  useEffect(() => {
+    fetchForecast({ destination: form.destination, startDate: form.departDate, endDate: form.returnDate });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.destination, form.departDate, form.returnDate]);
 
   // Regenerate the itinerary whenever destination, interests, cuisine,
   // preferences, or trip length change — debounced slightly so rapid
@@ -488,8 +514,8 @@ export default function App() {
     setContactMatches((prev) => prev.filter((m) => m.uid !== match.uid));
   }
 
-  async function handleSendChatMessage() {
-    const text = chatInput.trim();
+  async function handleSendChatMessage(overrideText) {
+    const text = (overrideText ?? chatInput).trim();
     if (!text) return;
     const userMsg = { role: "user", text };
     const nextMessages = [...chatMessages, userMsg];
@@ -509,6 +535,23 @@ export default function App() {
     } else {
       setChatMessages((prev) => [...prev, { role: "assistant", text: "Sorry, something went wrong — try again." }]);
     }
+  }
+
+  // Cross-references the weather forecast against the itinerary's day
+  // numbers (day 1 = departure date, etc.) and asks the concierge to
+  // adjust any rainy days — reuses the concierge chat's edit ability
+  // rather than building separate logic to rewrite the itinerary.
+  function handleAskConciergeAboutWeather() {
+    if (!weatherDays?.length) return;
+    const rainyDays = weatherDays
+      .map((d, i) => ({ ...d, dayNumber: i + 1 }))
+      .filter((d) => d.precipitationMm > 5);
+    if (!rainyDays.length) {
+      setChatMessages((prev) => [...prev, { role: "assistant", text: "Good news — no significant rain in the forecast for your trip, nothing to adjust." }]);
+      return;
+    }
+    const dayList = rainyDays.map((d) => `Day ${d.dayNumber} (${d.date}, ~${d.precipitationMm}mm rain expected)`).join(", ");
+    handleSendChatMessage(`The forecast shows rain on these days: ${dayList}. Can you swap any outdoor activities on those days for indoor alternatives?`);
   }
 
   function handleGeneratePacking() {
@@ -999,6 +1042,29 @@ export default function App() {
         <div className="panel-head">
           <div><h2>Your day-by-day plan</h2><p>Toggle what you like — the plan below rebuilds automatically, and its cost feeds straight into your budget.</p></div>
         </div>
+
+        {weatherLoading && <p className="loading-line" style={{ marginBottom: 16 }}><span className="spinner" />Checking the forecast…</p>}
+        {weatherAvailable && weatherDays?.length > 0 && (
+          <div className="weather-strip">
+            {weatherDays.map((d) => (
+              <div key={d.date} className={`weather-day ${d.precipitationMm > 5 ? "weather-day--rain" : ""}`}>
+                <div className="weather-date">{formatShortDate(d.date)}</div>
+                <div className="weather-icon">{weatherIcon(d.weatherCode)}</div>
+                <div className="weather-temp">{Math.round(d.tempMaxC)}° / {Math.round(d.tempMinC)}°C</div>
+                {d.precipitationMm > 5 && <div className="weather-rain-note">{d.precipitationMm.toFixed(0)}mm rain</div>}
+              </div>
+            ))}
+            {weatherDays.some((d) => d.precipitationMm > 5) && (
+              <button className="book-btn secondary weather-adjust-btn" onClick={handleAskConciergeAboutWeather} disabled={conciergeLoading}>
+                Ask concierge to adjust for weather
+              </button>
+            )}
+          </div>
+        )}
+        {weatherAvailable === false && weatherReason && (
+          <p className="pref-hint" style={{ marginBottom: 20 }}>{weatherReason}</p>
+        )}
+
         <div className="chip-grid" style={{ marginBottom: 30 }}>
           {INTEREST_OPTIONS.map((opt) => (
             <div key={opt.id} className={`chip ${interests.includes(opt.id) ? "active" : ""}`} onClick={() => toggleInterest(opt.id)} style={{ cursor: "pointer" }}>

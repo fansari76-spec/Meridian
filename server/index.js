@@ -13,6 +13,7 @@ import itineraryRouter from "./routes/itinerary.js";
 import conciergeRouter from "./routes/concierge.js";
 import packingRouter from "./routes/packing.js";
 import briefingRouter from "./routes/briefing.js";
+import weatherRouter from "./routes/weather.js";
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use("/api/itinerary", itineraryRouter);
 app.use("/api/concierge", conciergeRouter);
 app.use("/api/packing", packingRouter);
 app.use("/api/briefing", briefingRouter);
+app.use("/api/weather", weatherRouter);
 
 app.get("/health", (req, res) => {
   res.json({
