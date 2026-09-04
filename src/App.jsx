@@ -7,6 +7,7 @@ import { useStaySearch } from "./lib/useStaySearch.js";
 import { useItinerary } from "./lib/useItinerary.js";
 import { useConcierge } from "./lib/useConcierge.js";
 import { usePacking } from "./lib/usePacking.js";
+import { useBriefing } from "./lib/useBriefing.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
@@ -194,6 +195,7 @@ export default function App() {
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
   const { generate: generatePacking, loading: packingLoading, categories: packingCategories, usedAI: packingUsedAI, warning: packingWarning } = usePacking();
   const [packedItems, setPackedItems] = useState({}); // "category::item" -> bool
+  const { generate: generateBriefing, loading: briefingLoading, sections: briefingSections, usedAI: briefingUsedAI, warning: briefingWarning } = useBriefing();
   const [chatPlan, setChatPlan] = useState(null); // itinerary overrides made via the concierge chat
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
@@ -524,6 +526,14 @@ export default function App() {
 
   function togglePackedItem(key) {
     setPackedItems((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function handleGenerateBriefing() {
+    generateBriefing({
+      destination: form.destination,
+      faithTradition: selectedFaith?.name || null,
+      travelParty: prefs.travelParty,
+    });
   }
 
   async function handleToggleNearby() {
@@ -1113,6 +1123,42 @@ export default function App() {
               </div>
               <button className="book-btn secondary" style={{ marginTop: 16 }} onClick={handleGeneratePacking} disabled={packingLoading}>
                 {packingLoading ? "Rebuilding…" : "Regenerate"}
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="packing-box">
+          <div className="panel-head" style={{ marginBottom: 16 }}>
+            <div>
+              <h2 style={{ fontSize: "1.25rem" }}>Safety & etiquette briefing</h2>
+              <p style={{ fontSize: "0.85rem" }}>Local customs, dress norms, and safety notes for {form.destination}{selectedFaith ? `, including ${selectedFaith.name} pilgrimage guidance` : ""}.</p>
+            </div>
+          </div>
+          {!briefingSections && (
+            <button className="book-btn" onClick={handleGenerateBriefing} disabled={briefingLoading}>
+              {briefingLoading ? "Building your briefing…" : "Generate briefing"}
+            </button>
+          )}
+          {briefingWarning && <p className="pref-hint" style={{ marginTop: 10 }}>{briefingWarning}</p>}
+          {!briefingUsedAI && briefingSections && (
+            <div className="demo-note" style={{ marginBottom: 16 }}>General guidance — add ANTHROPIC_API_KEY in server/.env for a briefing specific to this destination.</div>
+          )}
+          {briefingSections && (
+            <>
+              <div className="briefing-list">
+                {briefingSections.map((s) => (
+                  <div key={s.title} className="briefing-item">
+                    <div className="briefing-title">{s.title}</div>
+                    <div className="briefing-content">{s.content}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="pref-hint" style={{ marginTop: 14 }}>
+                General guidance, not a live travel advisory — check your government's official travel advisory for {form.destination} closer to departure for anything safety-critical.
+              </p>
+              <button className="book-btn secondary" style={{ marginTop: 10 }} onClick={handleGenerateBriefing} disabled={briefingLoading}>
+                {briefingLoading ? "Rebuilding…" : "Regenerate"}
               </button>
             </>
           )}
