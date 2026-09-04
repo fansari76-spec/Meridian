@@ -10,6 +10,7 @@ import cors from "cors";
 import flightsRouter from "./routes/flights.js";
 import staysRouter from "./routes/stays.js";
 import itineraryRouter from "./routes/itinerary.js";
+import conciergeRouter from "./routes/concierge.js";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use("/api/flights", flightsRouter);
 app.use("/api/stays", staysRouter);
 app.use("/api/itinerary", itineraryRouter);
+app.use("/api/concierge", conciergeRouter);
 
 app.get("/health", (req, res) => {
   res.json({

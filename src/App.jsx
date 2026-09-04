@@ -5,13 +5,15 @@ import { calculateBudget } from "./lib/budget.js";
 import { useFlightSearch } from "./lib/useFlightSearch.js";
 import { useStaySearch } from "./lib/useStaySearch.js";
 import { useItinerary } from "./lib/useItinerary.js";
+import { useConcierge } from "./lib/useConcierge.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
-import { upsertUserProfile, findUserByEmail } from "./lib/users.js";
+import { upsertUserProfile, findUserByEmail, findUsersByEmailHashes } from "./lib/users.js";
 import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
 import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
+import { sha256Hex } from "./lib/hash.js";
 
 const TABS = [
   { id: "search", label: "Flights & Stays" },
@@ -181,10 +183,23 @@ export default function App() {
   const [inbox, setInbox] = useState([]);
   const [sentPings, setSentPings] = useState([]);
   const [replyDrafts, setReplyDrafts] = useState({});
+  const [contactMatches, setContactMatches] = useState([]);
+  const [checkingContacts, setCheckingContacts] = useState(false);
+  const [contactCheckStatus, setContactCheckStatus] = useState(null);
 
   const { search, loading, error, results } = useFlightSearch();
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI } = useItinerary();
+  const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
+  const [chatPlan, setChatPlan] = useState(null); // itinerary overrides made via the concierge chat
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+
+  // A fresh full itinerary generation (from preferences/interests
+  // changing) should supersede any prior chat edits.
+  useEffect(() => {
+    setChatPlan(null);
+  }, [aiPlan]);
 
   useEffect(() => {
     const unsub = subscribeToAuthChanges((u) => setUser(u));
@@ -303,7 +318,7 @@ export default function App() {
     ? selectedFlight.totalAmount / (form.travelers || 1)
     : 209; // demo fallback so budget/itinerary work before any search runs
 
-  const itineraryPlan = aiPlan || [];
+  const itineraryPlan = chatPlan || aiPlan || [];
 
   const budget = useMemo(
     () =>
@@ -422,6 +437,73 @@ export default function App() {
   async function handleRemoveFriend(uid) {
     await removeFriend(user.uid, uid);
     setFriends((prev) => prev.filter((f) => f.uid !== uid));
+  }
+
+  // Uses the Contact Picker API (currently Android Chrome only — no
+  // browser has this on iOS) to check which of the user's actual
+  // phone contacts have Meridian accounts, WITHOUT ever sending their
+  // raw email addresses anywhere. Each one is hashed on-device first.
+  async function handleFindContactsOnMeridian() {
+    if (!("contacts" in navigator && "ContactsManager" in window)) {
+      setContactCheckStatus(
+        "Your browser doesn't support contact matching yet — this currently only works on Android Chrome. Add friends by email instead for now."
+      );
+      return;
+    }
+    setCheckingContacts(true);
+    setContactCheckStatus(null);
+    try {
+      const props = ["email"];
+      const opts = { multiple: true };
+      const picked = await navigator.contacts.select(props, opts);
+      const emails = picked.flatMap((c) => c.email || []).filter(Boolean);
+      if (!emails.length) {
+        setContactCheckStatus("No contacts with email addresses were selected.");
+        return;
+      }
+      const hashes = await Promise.all(emails.map((e) => sha256Hex(e)));
+      const matches = await findUsersByEmailHashes(hashes);
+      const newMatches = matches.filter((m) => m.uid !== user.uid && !friends.some((f) => f.uid === m.uid));
+      setContactMatches(newMatches);
+      setContactCheckStatus(
+        newMatches.length
+          ? `Found ${newMatches.length} of your contacts on Meridian.`
+          : "None of the selected contacts have Meridian accounts yet."
+      );
+    } catch (err) {
+      setContactCheckStatus(err.message?.includes("cancel") ? null : err.message || "Couldn't check contacts.");
+    } finally {
+      setCheckingContacts(false);
+    }
+  }
+
+  async function handleAddContactMatch(match) {
+    await addFriend(user.uid, match);
+    setFriends((prev) => [...prev, match]);
+    setContactMatches((prev) => prev.filter((m) => m.uid !== match.uid));
+  }
+
+  async function handleSendChatMessage() {
+    const text = chatInput.trim();
+    if (!text) return;
+    const userMsg = { role: "user", text };
+    const nextMessages = [...chatMessages, userMsg];
+    setChatMessages(nextMessages);
+    setChatInput("");
+
+    const result = await sendConciergeMessage({
+      destination: form.destination,
+      currentPlan: itineraryPlan,
+      message: text,
+      history: chatMessages,
+    });
+
+    if (result) {
+      setChatMessages((prev) => [...prev, { role: "assistant", text: result.reply }]);
+      if (result.updatedPlan) setChatPlan(result.updatedPlan);
+    } else {
+      setChatMessages((prev) => [...prev, { role: "assistant", text: "Sorry, something went wrong — try again." }]);
+    }
   }
 
   async function handleToggleNearby() {
@@ -939,6 +1021,39 @@ export default function App() {
             );
           })}
         </div>
+
+        <div className="concierge-box">
+          <div className="pref-label">Ask the trip concierge</div>
+          <p className="pref-hint" style={{ marginTop: -4, marginBottom: 12 }}>
+            Ask a question, or ask for a change — "swap day 2's dinner for something vegan," "make day 3 more relaxed," "what's the best time to visit that market?"
+          </p>
+          <div className="concierge-messages">
+            {chatMessages.length === 0 && <p className="pref-hint">No messages yet — try asking something above.</p>}
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`concierge-msg concierge-msg--${m.role}`}>
+                {m.text}
+              </div>
+            ))}
+            {conciergeLoading && (
+              <div className="concierge-msg concierge-msg--assistant">
+                <span className="spinner" style={{ marginRight: 8 }} />
+                Thinking…
+              </div>
+            )}
+          </div>
+          <div className="concierge-input-row">
+            <input
+              placeholder="Type a message…"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSendChatMessage()}
+              disabled={conciergeLoading}
+            />
+            <button className="book-btn" style={{ margin: 0 }} onClick={handleSendChatMessage} disabled={conciergeLoading}>
+              Send
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* ===================== PILGRIMAGE ===================== */}
@@ -1005,6 +1120,29 @@ export default function App() {
               )}
             </div>
             {nearbyStatus && <p className="pref-hint">{nearbyStatus}</p>}
+
+            <div style={{ marginTop: 32 }}>
+              <div className="pref-label">Find contacts already on Meridian</div>
+              <p className="pref-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+                Checks your phone contacts against Meridian accounts — your contacts' info is hashed on your device and never sent anywhere in plain text. Currently works on Android Chrome only; other browsers can add friends by email below instead.
+              </p>
+              <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts}>
+                {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
+              </button>
+              {contactCheckStatus && <p className="pref-hint">{contactCheckStatus}</p>}
+              {contactMatches.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  {contactMatches.map((m) => (
+                    <div key={m.uid} className="friend-row">
+                      <div className="friend-email">{m.displayName || m.email}</div>
+                      <button className="book-btn" style={{ margin: 0 }} onClick={() => handleAddContactMatch(m)}>
+                        Add friend
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div style={{ marginTop: 32 }}>
               <div className="pref-label">Add a friend by email</div>

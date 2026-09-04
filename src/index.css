@@ -106,6 +106,14 @@ section.panel:last-of-type{border-bottom:none;}
 .ping-reply-row input{flex:1; min-width:160px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:0.85rem;}
 .ping-replied-note{font-size:0.82rem; color:#5A5F68; margin-top:8px; font-style:italic;}
 
+.concierge-box{margin-top:36px; background:var(--white); border:1px solid var(--line); border-radius:16px; padding:20px 22px;}
+.concierge-messages{max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; margin-bottom:12px;}
+.concierge-msg{padding:10px 14px; border-radius:12px; font-size:0.88rem; max-width:80%; line-height:1.4;}
+.concierge-msg--user{background:var(--indigo); color:var(--paper); align-self:flex-end; border-bottom-right-radius:4px;}
+.concierge-msg--assistant{background:var(--paper-dim); color:var(--ink); align-self:flex-start; border-bottom-left-radius:4px;}
+.concierge-input-row{display:flex; gap:8px;}
+.concierge-input-row input{flex:1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:0.9rem;}
+
 @media (max-width:700px){
   .top-picks-grid{grid-template-columns:1fr;}
 }
