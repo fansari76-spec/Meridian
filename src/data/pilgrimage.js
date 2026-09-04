@@ -2,7 +2,7 @@ export const PILGRIMAGE_SITES = [
   {
     id: "buddhist",
     icon: "☸️",
-    name: "Buddhist",
+    name: "Buddhism",
     summary: "The four great sites of the Buddha's life, plus monastery stays and silent retreats.",
     dest: "Bodh Gaya, Sarnath, Lumbini",
     timing: "October–March avoids the hottest/monsoon months. Buddha Purnima is most significant but most crowded, especially at Bodh Gaya.",
@@ -12,7 +12,7 @@ export const PILGRIMAGE_SITES = [
   {
     id: "catholic",
     icon: "🕎",
-    name: "Catholic",
+    name: "Catholicism",
     summary: "Vatican access, Marian shrines, and Camino routes with pace built for walking pilgrims.",
     dest: "Vatican City, Lourdes, Santiago",
     timing:
@@ -34,7 +34,7 @@ export const PILGRIMAGE_SITES = [
   {
     id: "hindu",
     icon: "🕉️",
-    name: "Hindu",
+    name: "Hinduism",
     summary: "River Ganges rites at Varanasi and the Char Dham circuit, timed to festival calendars.",
     dest: "Varanasi, Char Dham",
     timing:
