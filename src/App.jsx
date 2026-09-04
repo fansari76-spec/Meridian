@@ -16,6 +16,7 @@ import { upsertUserProfile, findUserByEmail, findUsersByEmailHashes } from "./li
 import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
 import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
+import { createGroupTrip, listMyGroupTrips } from "./lib/groupTrips.js";
 import { sha256Hex } from "./lib/hash.js";
 
 const TABS = [
@@ -24,6 +25,7 @@ const TABS = [
   { id: "budget", label: "Budget" },
   { id: "itinerary", label: "Itinerary" },
   { id: "pilgrimage", label: "Pilgrimage" },
+  { id: "group", label: "Group Travel" },
   { id: "nearby", label: "Nearby" },
   { id: "account", label: "Account" },
 ];
@@ -203,6 +205,10 @@ export default function App() {
   const [inbox, setInbox] = useState([]);
   const [sentPings, setSentPings] = useState([]);
   const [replyDrafts, setReplyDrafts] = useState({});
+  const [inviteSelection, setInviteSelection] = useState([]); // friend uids selected for a group trip
+  const [groupTripStatus, setGroupTripStatus] = useState(null);
+  const [groupTripUrl, setGroupTripUrl] = useState(null);
+  const [myGroupTrips, setMyGroupTrips] = useState([]);
   const [contactMatches, setContactMatches] = useState([]);
   const [checkingContacts, setCheckingContacts] = useState(false);
   const [contactCheckStatus, setContactCheckStatus] = useState(null);
@@ -243,10 +249,12 @@ export default function App() {
       setFriends([]);
       setInbox([]);
       setSentPings([]);
+      setMyGroupTrips([]);
       return;
     }
     upsertUserProfile(user);
     listFriends(user.uid).then(setFriends);
+    listMyGroupTrips(user.uid).then(setMyGroupTrips);
     const unsubInbox = subscribeToInbox(user.uid, setInbox);
     const unsubSent = subscribeToSent(user.uid, setSentPings);
     return () => {
@@ -577,6 +585,66 @@ export default function App() {
       faithTradition: selectedFaith?.name || null,
       travelParty: prefs.travelParty,
     });
+  }
+
+  function toggleInviteFriend(uid) {
+    setInviteSelection((prev) => (prev.includes(uid) ? prev.filter((u) => u !== uid) : [...prev, uid]));
+  }
+
+  async function handleStartGroupTrip() {
+    if (!user) {
+      setGroupTripStatus("Sign in first (Account tab) to start a group trip.");
+      setActiveTab("account");
+      return;
+    }
+    if (itineraryPlan.length === 0) {
+      setGroupTripStatus("Build an itinerary first, then start a group trip from it.");
+      return;
+    }
+    setGroupTripStatus("Creating your group trip…");
+    try {
+      const invitedFriends = friends.filter((f) => inviteSelection.includes(f.uid));
+      const memberNames = {};
+      invitedFriends.forEach((f) => (memberNames[f.uid] = f.displayName || f.email));
+
+      const id = await createGroupTrip({
+        ownerId: user.uid,
+        ownerName: user.displayName || user.email,
+        origin: form.origin,
+        destination: form.destination,
+        departDate: form.departDate,
+        returnDate: form.returnDate,
+        travelers: form.travelers,
+        itineraryPlan,
+        memberIds: invitedFriends.map((f) => f.uid),
+        memberNames,
+      });
+
+      const url = `${window.location.origin}/group/${id}`;
+      setGroupTripUrl(url);
+      setMyGroupTrips((prev) => [
+        { id, origin: form.origin, destination: form.destination, departDate: form.departDate, returnDate: form.returnDate, memberIds: [user.uid, ...invitedFriends.map((f) => f.uid)] },
+        ...prev,
+      ]);
+
+      // Notify each invited friend via the existing messaging system
+      // so they see it in their inbox, same no-read-receipt guarantee.
+      await Promise.all(
+        invitedFriends.map((f) =>
+          sendPing({
+            fromUserId: user.uid,
+            fromName: user.displayName || user.email,
+            toUserId: f.uid,
+            message: `You're invited to vote on a ${form.destination} trip! ${url}`,
+          }).catch(() => {})
+        )
+      );
+
+      setGroupTripStatus(invitedFriends.length ? `Group trip created and ${invitedFriends.length} friend${invitedFriends.length > 1 ? "s" : ""} notified.` : "Group trip created — share the link below.");
+      setInviteSelection([]);
+    } catch (err) {
+      setGroupTripStatus(err.message || "Couldn't create the group trip.");
+    }
   }
 
   async function handleToggleNearby() {
@@ -1229,6 +1297,75 @@ export default function App() {
             </>
           )}
         </div>
+      </section>
+
+      {/* ===================== GROUP TRAVEL ===================== */}
+      <section className="panel wrap" style={{ display: activeTab === "group" ? "block" : "none" }}>
+        <div className="panel-head">
+          <div>
+            <h2>Group Travel</h2>
+            <p>Trips you're planning with others — RSVPs, shared photos, and live location, all in one place.</p>
+          </div>
+        </div>
+
+        {!user ? (
+          <div className="demo-note">Sign in (Account tab) to start or view group trips.</div>
+        ) : (
+          <>
+            {myGroupTrips.length > 0 && (
+              <div style={{ marginBottom: 40 }}>
+                <div className="pref-label">Your group trips</div>
+                {myGroupTrips.map((gt) => (
+                  <div key={gt.id} className="friend-row">
+                    <div>
+                      <div className="friend-email">{gt.origin} → {gt.destination}</div>
+                      <div className="friend-offline">{gt.departDate} to {gt.returnDate} · {gt.memberIds?.length || 1} traveler{(gt.memberIds?.length || 1) > 1 ? "s" : ""}</div>
+                    </div>
+                    <a className="book-btn" style={{ margin: 0 }} href={`${window.location.origin}/group/${gt.id}`} target="_blank" rel="noreferrer">
+                      Open →
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="packing-box" style={{ marginTop: 0 }}>
+              <div className="panel-head" style={{ marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ fontSize: "1.25rem" }}>Start a new group trip</h2>
+                  <p style={{ fontSize: "0.85rem" }}>Uses your current itinerary from the Itinerary tab. Invite friends to RSVP — when the group disagrees, the concierge proposes something everyone's more likely to like.</p>
+                </div>
+              </div>
+              {itineraryPlan.length === 0 ? (
+                <p className="pref-hint">Build an itinerary first (Itinerary tab), then come back here to turn it into a group trip.</p>
+              ) : friends.length === 0 ? (
+                <p className="pref-hint">Add friends on the Nearby tab first, then invite them here.</p>
+              ) : (
+                <>
+                  <div className="pref-label">Invite friends</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10, marginBottom: 16 }}>
+                    {friends.map((f) => (
+                      <label key={f.uid} className="packing-item">
+                        <input type="checkbox" checked={inviteSelection.includes(f.uid)} onChange={() => toggleInviteFriend(f.uid)} />
+                        <span>{f.displayName || f.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button className="book-btn" onClick={handleStartGroupTrip}>Start group trip</button>
+                </>
+              )}
+              {groupTripStatus && <p className="pref-hint" style={{ marginTop: 10 }}>{groupTripStatus}</p>}
+              {groupTripUrl && (
+                <div className="share-link-box">
+                  <input readOnly value={groupTripUrl} onFocus={(e) => e.target.select()} />
+                  <a href={groupTripUrl} target="_blank" rel="noreferrer" className="book-btn secondary" style={{ margin: 0 }}>
+                    Open →
+                  </a>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </section>
 
       {/* ===================== PILGRIMAGE ===================== */}
