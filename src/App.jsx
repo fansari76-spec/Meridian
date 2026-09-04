@@ -10,6 +10,7 @@ import { saveTrip, loadTrips } from "./lib/trips.js";
 
 const TABS = [
   { id: "search", label: "Flights & Stays" },
+  { id: "preferences", label: "Preferences" },
   { id: "budget", label: "Budget" },
   { id: "itinerary", label: "Itinerary" },
   { id: "pilgrimage", label: "Pilgrimage" },
@@ -28,6 +29,80 @@ const INTEREST_OPTIONS = [
 
 const CUISINE_OPTIONS = ["Halal", "Kosher", "Vegetarian", "Vegan", "Gluten-free", "Pescatarian"];
 
+// Every field here is optional — no question is required to search,
+// book, or get an itinerary. Answers just sharpen the recommendations.
+const PREFERENCE_QUESTIONS = [
+  { key: "travelParty", label: "Who's traveling?", options: ["Solo", "Couple", "Family with kids", "Friends group"] },
+  { key: "pace", label: "How do you like to move through a day?", options: ["Packed & efficient", "Balanced", "Slow & relaxed"] },
+  { key: "budgetStyle", label: "What's your budget style?", options: ["Budget-conscious", "Mid-range", "Luxury"] },
+  { key: "stayType", label: "Preferred place to stay?", options: ["Hotel", "Airbnb / Vrbo", "Boutique", "Resort"] },
+  { key: "flightPriority", label: "What matters most for flights?", options: ["Cheapest fare", "Fewest stops", "Best departure times"] },
+  { key: "occasion", label: "Special occasion?", options: ["None", "Honeymoon", "Anniversary", "Birthday", "Pilgrimage"] },
+];
+
+function toggleSingleAnswer(prefs, setPrefs, key, value) {
+  setPrefs((prev) => ({ ...prev, [key]: prev[key] === value ? null : value }));
+}
+
+function answeredCount(prefs) {
+  let count = 0;
+  for (const q of PREFERENCE_QUESTIONS) if (prefs[q.key]) count++;
+  if (prefs.accessibilityNotes?.trim()) count++;
+  if (prefs.otherNotes?.trim()) count++;
+  return count;
+}
+
+// --- Top-pick scoring — uses whatever preferences were answered,
+// falls back to sensible defaults (best value / highest rated) when
+// a question was left blank. ---
+
+function pickTopFlightId(offers, prefs) {
+  if (!offers?.length) return null;
+  if (prefs.flightPriority === "Cheapest fare") {
+    return [...offers].sort((a, b) => a.totalAmount - b.totalAmount)[0].id;
+  }
+  if (prefs.flightPriority === "Fewest stops") {
+    return [...offers].sort((a, b) => (a.slices[0]?.stops ?? 9) - (b.slices[0]?.stops ?? 9) || a.totalAmount - b.totalAmount)[0].id;
+  }
+  if (prefs.flightPriority === "Best departure times") {
+    const isDaytime = (iso) => {
+      const h = new Date(iso).getHours();
+      return h >= 8 && h <= 20;
+    };
+    const daytime = offers.filter((o) => isDaytime(o.slices[0]?.departure));
+    return (daytime.length ? daytime : offers).sort((a, b) => a.totalAmount - b.totalAmount)[0].id;
+  }
+  return offers[0].id; // already sorted best-value by the backend
+}
+
+function pickTopStayId(stays, prefs) {
+  if (!stays?.length) return null;
+  let candidates = stays;
+  if (prefs.stayType) {
+    const matched = stays.filter((s) => s.source && prefs.stayType.toLowerCase().includes(s.source.toLowerCase()));
+    if (matched.length) candidates = matched;
+  }
+  if (prefs.budgetStyle === "Budget-conscious") {
+    return [...candidates].sort((a, b) => (a.price ?? 0) - (b.price ?? 0))[0].id;
+  }
+  if (prefs.budgetStyle === "Luxury") {
+    return [...candidates].sort((a, b) => (b.price ?? 0) - (a.price ?? 0))[0].id;
+  }
+  return [...candidates].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0].id;
+}
+
+const PERIOD_LABELS = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" };
+const PERIOD_ORDER = ["morning", "afternoon", "evening", "unscheduled"];
+
+function groupByPeriod(activities) {
+  const buckets = { morning: [], afternoon: [], evening: [], unscheduled: [] };
+  for (const a of activities) {
+    const key = PERIOD_LABELS[a.period] ? a.period : "unscheduled";
+    buckets[key].push(a);
+  }
+  return PERIOD_ORDER.filter((key) => buckets[key].length > 0).map((key) => [key, buckets[key]]);
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("search");
   const [form, setForm] = useState({
@@ -44,6 +119,16 @@ export default function App() {
   const [cuisine, setCuisine] = useState("Halal");
   const [interests, setInterests] = useState(["slow-mornings", "food-focused", "live-music"]);
   const [selectedFaith, setSelectedFaith] = useState(null);
+  const [prefs, setPrefs] = useState({
+    travelParty: null,
+    pace: null,
+    budgetStyle: null,
+    stayType: null,
+    flightPriority: null,
+    occasion: null,
+    accessibilityNotes: "",
+    otherNotes: "",
+  });
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -72,8 +157,8 @@ export default function App() {
   }, [form.destination, form.departDate, form.returnDate, form.travelers]);
 
   // Regenerate the itinerary whenever destination, interests, cuisine,
-  // or trip length change — debounced slightly so rapid chip-toggling
-  // doesn't fire a request per click.
+  // preferences, or trip length change — debounced slightly so rapid
+  // chip-toggling doesn't fire a request per click.
   useEffect(() => {
     const timeout = setTimeout(() => {
       generateItineraryAI({
@@ -82,11 +167,17 @@ export default function App() {
         interests,
         cuisine: cuisine || null,
         faithTradition: selectedFaith?.name || null,
+        travelParty: prefs.travelParty,
+        pace: prefs.pace,
+        budgetStyle: prefs.budgetStyle,
+        occasion: prefs.occasion,
+        accessibilityNotes: prefs.accessibilityNotes || null,
+        otherNotes: prefs.otherNotes || null,
       });
     }, 500);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.destination, interests, cuisine, form.departDate, form.returnDate, selectedFaith]);
+  }, [form.destination, interests, cuisine, form.departDate, form.returnDate, selectedFaith, prefs]);
 
   // Once stays load (demo or real), default-select the first one so
   // the budget calculator has something to work with immediately.
@@ -115,6 +206,8 @@ export default function App() {
     ? selectedFlight.totalAmount / (form.travelers || 1)
     : 209; // demo fallback so budget/itinerary work before any search runs
 
+  const itineraryPlan = aiPlan || [];
+
   const budget = useMemo(
     () =>
       calculateBudget({
@@ -122,8 +215,9 @@ export default function App() {
         nightlyRate: selectedStay?.price ?? 140,
         nights,
         travelers: Number(form.travelers) || 1,
+        itineraryPlan,
       }),
-    [flightPricePerPerson, selectedStay, nights, form.travelers]
+    [flightPricePerPerson, selectedStay, nights, form.travelers, itineraryPlan]
   );
 
   const sortedStays = useMemo(() => {
@@ -135,12 +229,28 @@ export default function App() {
     return list;
   }, [staySortBy, fetchedStays]);
 
-  const itineraryPlan = aiPlan || [];
-
   const cheapestFlex = useMemo(() => {
     if (!results?.flexResults?.length) return null;
     return results.flexResults.reduce((min, r) => (r.cheapestTotal < (min?.cheapestTotal ?? Infinity) ? r : min), null);
   }, [results]);
+
+  const topFlightId = useMemo(() => pickTopFlightId(results?.primary?.offers, prefs), [results, prefs]);
+  const topStayId = useMemo(() => pickTopStayId(sortedStays, prefs), [sortedStays, prefs]);
+  const topFlight = useMemo(() => results?.primary?.offers?.find((o) => o.id === topFlightId) || null, [results, topFlightId]);
+  const topStay = useMemo(() => sortedStays.find((s) => s.id === topStayId) || null, [sortedStays, topStayId]);
+
+  function topFlightReason() {
+    if (prefs.flightPriority === "Cheapest fare") return "the lowest total fare";
+    if (prefs.flightPriority === "Fewest stops") return "the fewest stops";
+    if (prefs.flightPriority === "Best departure times") return "a daytime departure";
+    return "the best overall value";
+  }
+  function topStayReason() {
+    if (prefs.budgetStyle === "Budget-conscious") return "the lowest price that matched your stay type";
+    if (prefs.budgetStyle === "Luxury") return "your luxury preference";
+    if (prefs.stayType) return `matching your preferred ${prefs.stayType.toLowerCase()} stay`;
+    return "the highest rating";
+  }
 
   async function handleSaveTrip() {
     if (!user) {
@@ -237,6 +347,33 @@ export default function App() {
           </div>
         </div>
 
+        {(topFlight || topStay) && (
+          <div className="top-picks">
+            <div className="top-picks-label">⭐ Your top picks{answeredCount(prefs) > 0 ? ", based on your preferences" : ""}</div>
+            <div className="top-picks-grid">
+              {topFlight && (
+                <div className="top-pick-card">
+                  <div className="top-pick-kind">Flight</div>
+                  <div className="top-pick-name">{topFlight.airline || "Selected airline"}</div>
+                  <div className="top-pick-why">Picked for {topFlightReason()}</div>
+                  <div className="top-pick-price">${Math.round(topFlight.totalAmount)} <span>round trip / traveler</span></div>
+                </div>
+              )}
+              {topStay && (
+                <div className="top-pick-card">
+                  <div className="top-pick-kind">Stay</div>
+                  <div className="top-pick-name">{topStay.name}</div>
+                  <div className="top-pick-why">Picked for {topStayReason()}</div>
+                  <div className="top-pick-price">${topStay.price} <span>/night{staysUsedMock ? "" : " (est.)"}</span></div>
+                </div>
+              )}
+            </div>
+            {answeredCount(prefs) === 0 && (
+              <div className="top-picks-hint">Answer a few quick questions in the Preferences tab and these picks will match you more closely.</div>
+            )}
+          </div>
+        )}
+
         {!results && !loading && <p style={{ color: "#5A5F68", fontSize: "0.9rem" }}>Run a search above to see flight options here.</p>}
 
         {results?.primary?.offers?.length > 0 && (
@@ -256,6 +393,7 @@ export default function App() {
                   </div>
                   <div className="flight-tags">
                     {offer === results.primary.offers[0] && <span className="tag">Best value</span>}
+                    {offer.id === topFlightId && <span className="tag tag--pick">⭐ Top pick</span>}
                     <span className="tag">{offer.currency} total</span>
                   </div>
                 </div>
@@ -313,7 +451,7 @@ export default function App() {
                 <div className="stay-photo" style={{ backgroundImage: `url(${s.photo || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&q=60"})` }} />
                 <div className="stay-body">
                   <div className="stay-source">{s.source}</div>
-                  <div className="stay-name">{s.name}</div>
+                  <div className="stay-name">{s.name}{s.id === topStayId && <span className="tag tag--pick" style={{ marginLeft: 8 }}>⭐ Top pick</span>}</div>
                   <div className="stay-meta">{s.area}{s.distance != null ? ` · ${s.distance} mi from center` : ""}</div>
                   <div className="stay-scores">
                     {s.rating != null && <div className="score">★ {s.rating}{s.ratingCount ? ` (${s.ratingCount})` : ""}</div>}
@@ -350,6 +488,57 @@ export default function App() {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* ===================== PREFERENCES ===================== */}
+      <section className="panel wrap" style={{ display: activeTab === "preferences" ? "block" : "none" }}>
+        <div className="panel-head">
+          <div>
+            <h2>Tell us how you like to travel</h2>
+            <p>Every question here is optional — skip anything you'd rather not answer. The more you share, the more we can tailor your flights, stays, cuisine, and itinerary to you.</p>
+          </div>
+        </div>
+        <div className="prefs-progress">{answeredCount(prefs)} of {PREFERENCE_QUESTIONS.length + 2} answered</div>
+
+        {PREFERENCE_QUESTIONS.map((q) => (
+          <div key={q.key} className="pref-question">
+            <div className="pref-label">{q.label}</div>
+            <div className="chip-grid">
+              {q.options.map((opt) => (
+                <div
+                  key={opt}
+                  className={`chip ${prefs[q.key] === opt ? "active" : ""}`}
+                  onClick={() => toggleSingleAnswer(prefs, setPrefs, q.key, opt)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {opt}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <div className="pref-question">
+          <div className="pref-label">Any accessibility needs we should plan around? (optional)</div>
+          <textarea
+            className="pref-textarea"
+            placeholder="e.g. wheelchair-accessible venues, limited walking distance…"
+            value={prefs.accessibilityNotes}
+            onChange={(e) => setPrefs({ ...prefs, accessibilityNotes: e.target.value })}
+          />
+        </div>
+
+        <div className="pref-question">
+          <div className="pref-label">Anything else we should know? (optional)</div>
+          <textarea
+            className="pref-textarea"
+            placeholder="e.g. traveling with a toddler, celebrating a milestone, avoiding early mornings…"
+            value={prefs.otherNotes}
+            onChange={(e) => setPrefs({ ...prefs, otherNotes: e.target.value })}
+          />
+        </div>
+
+        <button className="book-btn" onClick={() => setActiveTab("itinerary")}>See your updated itinerary →</button>
       </section>
 
       {/* ===================== BUDGET ===================== */}
@@ -395,7 +584,7 @@ export default function App() {
       {/* ===================== ITINERARY ===================== */}
       <section className="panel wrap" style={{ display: activeTab === "itinerary" ? "block" : "none" }}>
         <div className="panel-head">
-          <div><h2>Your day-by-day plan</h2><p>Toggle what you like — the plan below rebuilds automatically.</p></div>
+          <div><h2>Your day-by-day plan</h2><p>Toggle what you like — the plan below rebuilds automatically, and its cost feeds straight into your budget.</p></div>
         </div>
         <div className="chip-grid" style={{ marginBottom: 30 }}>
           {INTEREST_OPTIONS.map((opt) => (
@@ -409,21 +598,45 @@ export default function App() {
         )}
         {itineraryLoading && <p style={{ color: "#5A5F68", fontSize: "0.9rem", marginBottom: 16 }}>Building your {form.destination} itinerary…</p>}
         <div className="itinerary">
-          {itineraryPlan.map((day) => (
-            <div className="day-block" key={day.dayNumber}>
-              <div className="day-title">Day {day.dayNumber}</div>
-              {day.activities.map((a, i) => (
-                <div className="activity" key={i}>
-                  <div className="activity-time">{a.time}</div>
-                  <div>
-                    <div className="activity-name">{a.name}</div>
-                    <div className="activity-desc">{a.desc}</div>
-                    {a.tag && <span className="activity-tag">{a.tag.replace("-", " ")}</span>}
-                  </div>
+          {itineraryPlan.map((day) => {
+            const dayTotalPerPerson = (day.activities || []).reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
+            const groups = groupByPeriod(day.activities || []);
+            return (
+              <div className="day-block" key={day.dayNumber}>
+                <div className="day-title">
+                  Day {day.dayNumber}
+                  {dayTotalPerPerson > 0 && (
+                    <span className="sub"> — ~${dayTotalPerPerson} per person planned</span>
+                  )}
                 </div>
-              ))}
-            </div>
-          ))}
+                {groups.map(([period, acts]) => (
+                  <div key={period} className="period-group">
+                    {period !== "unscheduled" && <div className="period-label">{PERIOD_LABELS[period] || period}</div>}
+                    {acts.map((a, i) => (
+                      <div className="activity" key={i}>
+                        <div className="activity-time">{a.time}</div>
+                        <div style={{ flex: 1 }}>
+                          <div className="activity-name-row">
+                            <div className="activity-name">
+                              {a.category === "food" ? "🍽️ " : a.category === "activity" ? "🎟️ " : ""}
+                              {a.name}
+                            </div>
+                            {Number(a.cost) > 0 ? (
+                              <span className="activity-cost">${a.cost}/pp</span>
+                            ) : (
+                              <span className="activity-cost activity-cost--free">Free</span>
+                            )}
+                          </div>
+                          <div className="activity-desc">{a.desc}</div>
+                          {a.tag && <span className="activity-tag">{a.tag.replace("-", " ")}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </section>
 
