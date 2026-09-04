@@ -12,7 +12,7 @@ import { useWeather } from "./lib/useWeather.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
-import { upsertUserProfile, findUserByEmail, findUsersByEmailHashes, searchUsersByPrefix } from "./lib/users.js";
+import { upsertUserProfile, findUserByEmail, findUsersByEmailHashes, searchUsersByPrefix, savePreferences, loadPreferences } from "./lib/users.js";
 import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
 import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
@@ -185,6 +185,7 @@ export default function App() {
     accessibilityNotes: "",
     otherNotes: "",
   });
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -253,11 +254,16 @@ export default function App() {
       setInbox([]);
       setSentPings([]);
       setMyGroupTrips([]);
+      setPrefsLoaded(false);
       return;
     }
     upsertUserProfile(user);
     listFriends(user.uid).then(setFriends);
     listMyGroupTrips(user.uid).then(setMyGroupTrips);
+    loadPreferences(user.uid).then((saved) => {
+      if (saved) setPrefs((p) => ({ ...p, ...saved }));
+      setPrefsLoaded(true);
+    });
     const unsubInbox = subscribeToInbox(user.uid, setInbox);
     const unsubSent = subscribeToSent(user.uid, setSentPings);
     return () => {
@@ -265,6 +271,15 @@ export default function App() {
       unsubSent();
     };
   }, [user]);
+
+  // Persist preferences to the account, debounced, only once the
+  // initial load above has completed (avoids overwriting saved
+  // preferences with the blank defaults during that first render).
+  useEffect(() => {
+    if (!user || !prefsLoaded) return;
+    const timeout = setTimeout(() => savePreferences(user.uid, prefs), 800);
+    return () => clearTimeout(timeout);
+  }, [prefs, user, prefsLoaded]);
 
   // If this page was opened via a "Duplicate this trip" link
   // (?duplicate=<id>), pre-fill the search form and preferences from
@@ -759,7 +774,7 @@ export default function App() {
           </nav>
           <div className="topbar-right">
             <button className="signin-btn" onClick={() => setActiveTab("account")}>
-              {user ? "Account" : "Sign up free"}
+              {user ? (user.displayName || user.email?.split("@")[0] || "Account") : "Sign up free"}
             </button>
             <button className="mobile-menu-btn" aria-label="Open menu" onClick={() => setMobileNavOpen((v) => !v)}>
               {mobileNavOpen ? "✕" : "☰"}
@@ -1665,36 +1680,85 @@ export default function App() {
 
       {/* ===================== ACCOUNT ===================== */}
       <section className="panel wrap" style={{ display: activeTab === "account" ? "block" : "none" }}>
-        <div className="account-panel">
-          <div>
-            <h2 style={{ fontSize: "1.8rem", fontWeight: 600 }}>{user ? `Welcome back` : "Save this trip in 10 seconds."}</h2>
-            <p style={{ color: "#5A5F68", marginTop: 12, maxWidth: "44ch" }}>
-              {user
-                ? "Your saved trips are listed here."
-                : "Sign up free with the email you already use. No new password, no charge to plan."}
-            </p>
-            {user && (
-              <div style={{ marginTop: 16 }}>
-                {trips.length === 0 && <p style={{ fontSize: "0.85rem", color: "#8A8F97" }}>No trips saved yet — build one on the Budget tab.</p>}
-                {trips.map((t) => (
+        {!user ? (
+          <div className="account-panel">
+            <div>
+              <h2 style={{ fontSize: "1.8rem", fontWeight: 600 }}>Save this trip in 10 seconds.</h2>
+              <p style={{ color: "#5A5F68", marginTop: 12, maxWidth: "44ch" }}>
+                Sign up free with the email you already use. No new password, no charge to plan.
+              </p>
+            </div>
+            <AuthButtons onSignedIn={(u) => { setUser(u); setSaveStatus(null); }} />
+          </div>
+        ) : (
+          <>
+            <div className="panel-head">
+              <div>
+                <h2>Your account</h2>
+                <p>Profile, preferences, and everything tied to your Meridian account.</p>
+              </div>
+            </div>
+
+            <div className="account-card">
+              <div className="account-avatar">{(user.displayName || user.email || "?").charAt(0).toUpperCase()}</div>
+              <div>
+                <div className="account-name">{user.displayName || "Meridian traveler"}</div>
+                <div className="account-email">{user.email}</div>
+              </div>
+            </div>
+
+            <div className="account-section">
+              <div className="account-section-title">Trip preferences</div>
+              {answeredCount(prefs) === 0 ? (
+                <p className="pref-hint">Nothing set yet — answer a few questions on the Preferences tab to personalize your trips.</p>
+              ) : (
+                <ul className="account-prefs-list">
+                  {prefs.travelParty && <li><strong>Traveling as:</strong> {prefs.travelParty}</li>}
+                  {prefs.pace && <li><strong>Pace:</strong> {prefs.pace}</li>}
+                  {prefs.budgetStyle && <li><strong>Budget style:</strong> {prefs.budgetStyle}</li>}
+                  {prefs.stayType && <li><strong>Preferred stay:</strong> {prefs.stayType}</li>}
+                  {prefs.flightPriority && <li><strong>Flight priority:</strong> {prefs.flightPriority}</li>}
+                  {prefs.occasion && prefs.occasion !== "None" && <li><strong>Occasion:</strong> {prefs.occasion}</li>}
+                  {prefs.dietaryRestrictions?.length > 0 && <li><strong>Dietary:</strong> {prefs.dietaryRestrictions.join(", ")}</li>}
+                  {prefs.favoriteCuisines?.length > 0 && <li><strong>Favorite cuisines:</strong> {prefs.favoriteCuisines.join(" → ")}</li>}
+                </ul>
+              )}
+              <button className="book-btn secondary" style={{ marginTop: 12 }} onClick={() => setActiveTab("preferences")}>
+                Edit preferences →
+              </button>
+              <p className="pref-hint" style={{ marginTop: 8 }}>Saved to your account — these follow you across sessions and devices now.</p>
+            </div>
+
+            <div className="account-section">
+              <div className="account-section-title">Saved trips</div>
+              {trips.length === 0 ? (
+                <p className="pref-hint">No trips saved yet — build one on the Budget tab.</p>
+              ) : (
+                trips.map((t) => (
                   <div className="trip-row" key={t.id}>
                     <span>{t.origin} → {t.destination}</span>
                     <span>${t.total?.toLocaleString?.() ?? t.total}</span>
                   </div>
-                ))}
-                <button className="book-btn secondary" style={{ marginTop: 16 }} onClick={signOutUser}>Sign out</button>
-              </div>
-            )}
-          </div>
-          {!user && (
-            <AuthButtons
-              onSignedIn={(u) => {
-                setUser(u);
-                setSaveStatus(null);
-              }}
-            />
-          )}
-        </div>
+                ))
+              )}
+            </div>
+
+            <div className="account-section">
+              <div className="account-section-title">Sign-in & security</div>
+              <p className="pref-hint">
+                You're signed in via {user.providerData?.[0]?.providerId?.includes("google") ? "Google" : user.providerData?.[0]?.providerId?.includes("apple") ? "Apple" : "your email provider"}.
+                Your password (if any) is managed by them, not Meridian — there's nothing to change here.
+              </p>
+            </div>
+
+            <div className="account-section">
+              <div className="account-section-title">Billing</div>
+              <p className="pref-hint">Meridian is free to plan on — there's no subscription or payment on file, because nothing is charged yet.</p>
+            </div>
+
+            <button className="book-btn secondary" style={{ marginTop: 8 }} onClick={signOutUser}>Sign out</button>
+          </>
+        )}
       </section>
 
       <footer>Meridian — {isFirebaseConfigured ? "connected to your Firebase project" : "running in demo mode"}.</footer>

@@ -14,7 +14,7 @@
 //    the matching.
 
 import { db, isFirebaseConfigured } from "./firebase";
-import { doc, setDoc, getDocs, query, collection, where, orderBy, limit, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, query, collection, where, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { sha256Hex } from "./hash.js";
 
 export async function upsertUserProfile(user) {
@@ -84,4 +84,21 @@ export async function searchUsersByPrefix(term) {
   emailSnap.forEach((d) => byUid.set(d.id, { uid: d.id, ...d.data() }));
   nameSnap.forEach((d) => byUid.set(d.id, { uid: d.id, ...d.data() }));
   return [...byUid.values()].slice(0, 8);
+}
+
+/**
+ * Persists the trip-planning preferences (Preferences tab) to the
+ * user's account, so they survive across sessions/devices instead of
+ * resetting on every reload.
+ */
+export async function savePreferences(userId, preferences) {
+  if (!isFirebaseConfigured || !userId) return;
+  await setDoc(doc(db, "users", userId), { preferences }, { merge: true });
+}
+
+export async function loadPreferences(userId) {
+  if (!isFirebaseConfigured || !userId) return null;
+  const snap = await getDoc(doc(db, "users", userId));
+  if (!snap.exists()) return null;
+  return snap.data().preferences || null;
 }
