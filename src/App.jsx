@@ -121,6 +121,7 @@ function groupByPeriod(activities) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("search");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [form, setForm] = useState({
     origin: "JFK",
     destination: "LIS",
@@ -302,10 +303,31 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <button className="signin-btn" onClick={() => setActiveTab("account")}>
-            {user ? "Account" : "Sign up free"}
-          </button>
+          <div className="topbar-right">
+            <button className="signin-btn" onClick={() => setActiveTab("account")}>
+              {user ? "Account" : "Sign up free"}
+            </button>
+            <button className="mobile-menu-btn" aria-label="Open menu" onClick={() => setMobileNavOpen((v) => !v)}>
+              {mobileNavOpen ? "✕" : "☰"}
+            </button>
+          </div>
         </div>
+        {mobileNavOpen && (
+          <nav className="mobile-tabs">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className={activeTab === t.id ? "active" : ""}
+                onClick={() => {
+                  setActiveTab(t.id);
+                  setMobileNavOpen(false);
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        )}
       </header>
 
       <section className="hero wrap">
@@ -465,7 +487,7 @@ export default function App() {
             </select>
           </div>
           {staysUsedMock && <div className="demo-note" style={{ marginBottom: 16 }}>Demo listings — add GOOGLE_PLACES_API_KEY in server/.env for real hotels. See README.md.</div>}
-          {staysLoading && <p style={{ color: "#5A5F68", fontSize: "0.9rem" }}>Searching hotels near {form.destination}…</p>}
+          {staysLoading && <p className="loading-line"><span className="spinner" />Searching hotels near {form.destination}…</p>}
           <div className="stay-grid">
             {sortedStays.map((s) => (
               <div className="stay-card" key={s.id} style={{ outline: selectedStay?.id === s.id ? "2px solid var(--teal)" : "none" }}>
@@ -656,7 +678,7 @@ export default function App() {
         {!usedAI && itineraryPlan.length > 0 && (
           <div className="demo-note" style={{ marginBottom: 20 }}>Template plan — add ANTHROPIC_API_KEY in server/.env for AI-generated, destination-specific itineraries. See README.md.</div>
         )}
-        {itineraryLoading && <p style={{ color: "#5A5F68", fontSize: "0.9rem", marginBottom: 16 }}>Building your {form.destination} itinerary…</p>}
+        {itineraryLoading && <p className="loading-line" style={{ marginBottom: 16 }}><span className="spinner" />Building your {form.destination} itinerary…</p>}
         <div className="itinerary">
           {itineraryPlan.map((day) => {
             const dayTotalPerPerson = (day.activities || []).reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
