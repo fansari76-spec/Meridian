@@ -12,7 +12,7 @@ import { useWeather } from "./lib/useWeather.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
-import { upsertUserProfile, findUserByEmail, findUsersByEmailHashes } from "./lib/users.js";
+import { upsertUserProfile, findUserByEmail, findUsersByEmailHashes, searchUsersByPrefix } from "./lib/users.js";
 import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
 import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
@@ -212,6 +212,9 @@ export default function App() {
   const [contactMatches, setContactMatches] = useState([]);
   const [checkingContacts, setCheckingContacts] = useState(false);
   const [contactCheckStatus, setContactCheckStatus] = useState(null);
+  const [memberSearchTerm, setMemberSearchTerm] = useState("");
+  const [memberSearchResults, setMemberSearchResults] = useState([]);
+  const [memberSearching, setMemberSearching] = useState(false);
 
   const { search, loading, error, results } = useFlightSearch();
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
@@ -287,6 +290,22 @@ export default function App() {
       setActiveTab("itinerary");
     });
   }, []);
+
+  // Debounced live search for inviting existing Meridian subscribers
+  // to a group trip — searches as the user types, no submit needed.
+  useEffect(() => {
+    if (memberSearchTerm.trim().length < 2) {
+      setMemberSearchResults([]);
+      return;
+    }
+    setMemberSearching(true);
+    const timeout = setTimeout(async () => {
+      const results = await searchUsersByPrefix(memberSearchTerm);
+      setMemberSearchResults(results.filter((r) => r.uid !== user?.uid));
+      setMemberSearching(false);
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [memberSearchTerm, user]);
 
   // Fetch stays once on load and whenever the destination or dates change.
   useEffect(() => {
@@ -520,6 +539,13 @@ export default function App() {
     await addFriend(user.uid, match);
     setFriends((prev) => [...prev, match]);
     setContactMatches((prev) => prev.filter((m) => m.uid !== match.uid));
+  }
+
+  async function handleAddSearchedMember(match) {
+    if (friends.some((f) => f.uid === match.uid)) return;
+    await addFriend(user.uid, match);
+    setFriends((prev) => [...prev, match]);
+    setMemberSearchResults((prev) => prev.filter((m) => m.uid !== match.uid));
   }
 
   async function handleSendChatMessage(overrideText) {
@@ -1336,13 +1362,75 @@ export default function App() {
                   <p style={{ fontSize: "0.85rem" }}>Uses your current itinerary from the Itinerary tab. Invite friends to RSVP — when the group disagrees, the concierge proposes something everyone's more likely to like.</p>
                 </div>
               </div>
+
+              <div className="pref-label">Search Meridian members</div>
+              <input
+                type="text"
+                placeholder="Search by name or email…"
+                value={memberSearchTerm}
+                onChange={(e) => setMemberSearchTerm(e.target.value)}
+                style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem", marginTop: 10 }}
+              />
+              {memberSearching && <p className="pref-hint">Searching…</p>}
+              {memberSearchResults.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  {memberSearchResults.map((m) => (
+                    <div key={m.uid} className="friend-row">
+                      <div className="friend-email">{m.displayName || m.email}</div>
+                      <button
+                        className="book-btn"
+                        style={{ margin: 0 }}
+                        onClick={() => handleAddSearchedMember(m)}
+                        disabled={friends.some((f) => f.uid === m.uid)}
+                      >
+                        {friends.some((f) => f.uid === m.uid) ? "Already added" : "Add"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {memberSearchTerm.trim().length >= 2 && !memberSearching && memberSearchResults.length === 0 && (
+                <p className="pref-hint">No matching Meridian accounts found.</p>
+              )}
+
+              <div className="pref-label" style={{ marginTop: 24 }}>Add someone to invite</div>
+              <form onSubmit={handleAddFriend} style={{ display: "flex", gap: 8, marginTop: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                <input
+                  type="email"
+                  placeholder="friend@email.com"
+                  value={addFriendEmail}
+                  onChange={(e) => setAddFriendEmail(e.target.value)}
+                  style={{ flex: 1, minWidth: 220, border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem" }}
+                  required
+                />
+                <button className="book-btn" type="submit" style={{ margin: 0 }}>Add</button>
+              </form>
+              {addFriendStatus && <p className="pref-hint">{addFriendStatus}</p>}
+              <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts} style={{ marginTop: 6 }}>
+                {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
+              </button>
+              <p className="pref-hint" style={{ marginTop: 6 }}>
+                Phone-contact matching currently works on Android Chrome only — the iOS/Android apps will support this fully via each phone's native contact picker.
+              </p>
+              {contactCheckStatus && <p className="pref-hint">{contactCheckStatus}</p>}
+              {contactMatches.length > 0 && (
+                <div style={{ marginTop: 10, marginBottom: 10 }}>
+                  {contactMatches.map((m) => (
+                    <div key={m.uid} className="friend-row">
+                      <div className="friend-email">{m.displayName || m.email}</div>
+                      <button className="book-btn" style={{ margin: 0 }} onClick={() => handleAddContactMatch(m)}>Add friend</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {itineraryPlan.length === 0 ? (
-                <p className="pref-hint">Build an itinerary first (Itinerary tab), then come back here to turn it into a group trip.</p>
+                <p className="pref-hint" style={{ marginTop: 24 }}>Build an itinerary first (Itinerary tab), then come back here to turn it into a group trip.</p>
               ) : friends.length === 0 ? (
-                <p className="pref-hint">Add friends on the Nearby tab first, then invite them here.</p>
+                <p className="pref-hint" style={{ marginTop: 24 }}>Add a friend above to start inviting people to this trip.</p>
               ) : (
                 <>
-                  <div className="pref-label">Invite friends</div>
+                  <div className="pref-label" style={{ marginTop: 24 }}>Invite friends to this trip</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10, marginBottom: 16 }}>
                     {friends.map((f) => (
                       <label key={f.uid} className="packing-item">

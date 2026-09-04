@@ -14,7 +14,7 @@
 //    the matching.
 
 import { db, isFirebaseConfigured } from "./firebase";
-import { doc, setDoc, getDocs, query, collection, where, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDocs, query, collection, where, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { sha256Hex } from "./hash.js";
 
 export async function upsertUserProfile(user) {
@@ -26,6 +26,7 @@ export async function upsertUserProfile(user) {
       email,
       emailHash: email ? await sha256Hex(email) : null,
       displayName: user.displayName || null,
+      displayNameLower: (user.displayName || "").toLowerCase(),
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -60,4 +61,27 @@ export async function findUsersByEmailHashes(hashes) {
     snap.forEach((d) => results.push({ uid: d.id, ...d.data() }));
   }
   return results;
+}
+
+/**
+ * Searches registered Meridian accounts by the start of their email
+ * or display name — powers the "recommendations while typing" search
+ * used when inviting people to a group trip. Firestore doesn't do
+ * substring search, so this is a prefix match (searching "jo" matches
+ * "john@..." or "Jordan", not "mojo@...").
+ */
+export async function searchUsersByPrefix(term) {
+  if (!isFirebaseConfigured || !term || term.trim().length < 2) return [];
+  const t = term.trim().toLowerCase();
+  const end = t + "\uf8ff"; // Firestore's standard prefix-range trick
+
+  const [emailSnap, nameSnap] = await Promise.all([
+    getDocs(query(collection(db, "users"), orderBy("email"), where("email", ">=", t), where("email", "<", end), limit(8))),
+    getDocs(query(collection(db, "users"), orderBy("displayNameLower"), where("displayNameLower", ">=", t), where("displayNameLower", "<", end), limit(8))),
+  ]);
+
+  const byUid = new Map();
+  emailSnap.forEach((d) => byUid.set(d.id, { uid: d.id, ...d.data() }));
+  nameSnap.forEach((d) => byUid.set(d.id, { uid: d.id, ...d.data() }));
+  return [...byUid.values()].slice(0, 8);
 }
