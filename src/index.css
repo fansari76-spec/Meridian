@@ -135,6 +135,17 @@ section.panel:last-of-type{border-bottom:none;}
 .weather-rain-note{font-size:0.68rem; color:var(--gold); font-weight:700; margin-top:3px;}
 .weather-adjust-btn{flex:0 0 auto; align-self:center; margin-left:6px;}
 
+.vote-row{display:flex; gap:8px; margin-top:8px;}
+.vote-btn{border:1px solid var(--line); background:var(--white); border-radius:999px; padding:5px 12px; font-size:0.82rem; font-weight:600; transition:all .12s ease;}
+.vote-btn:disabled{opacity:0.5; cursor:not-allowed;}
+.vote-btn--active-up{background:var(--teal-light); border-color:var(--teal);}
+.vote-btn--active-down{background:#F5E4E0; border-color:#C97B5D;}
+.vote-btn--active-going{background:var(--teal-light); border-color:var(--teal);}
+.vote-btn--active-not_going{background:#F5E4E0; border-color:#C97B5D;}
+.vote-btn--active-maybe{background:var(--paper-dim); border-color:var(--gold);}
+.rsvp-names{display:flex; flex-direction:column; gap:2px; margin-top:8px; font-size:0.78rem; color:#5A5F68;}
+.rsvp-name-group{display:block;}
+
 @media (max-width:700px){
   .top-picks-grid{grid-template-columns:1fr;}
 }

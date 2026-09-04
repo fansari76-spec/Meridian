@@ -16,6 +16,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -28,13 +29,14 @@ const firebaseConfig = {
 
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
-let app, auth, db;
+let app, auth, db, storage;
 if (isFirebaseConfigured) {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
+  storage = getStorage(app);
 }
-export { auth, db };
+export { auth, db, storage };
 
 export const googleProvider = isFirebaseConfigured ? new GoogleAuthProvider() : null;
 
