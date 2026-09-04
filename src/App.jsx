@@ -6,6 +6,7 @@ import { useFlightSearch } from "./lib/useFlightSearch.js";
 import { useStaySearch } from "./lib/useStaySearch.js";
 import { useItinerary } from "./lib/useItinerary.js";
 import { useConcierge } from "./lib/useConcierge.js";
+import { usePacking } from "./lib/usePacking.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
@@ -191,6 +192,8 @@ export default function App() {
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI, warning: itineraryWarning } = useItinerary();
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
+  const { generate: generatePacking, loading: packingLoading, categories: packingCategories, usedAI: packingUsedAI, warning: packingWarning } = usePacking();
+  const [packedItems, setPackedItems] = useState({}); // "category::item" -> bool
   const [chatPlan, setChatPlan] = useState(null); // itinerary overrides made via the concierge chat
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
@@ -504,6 +507,23 @@ export default function App() {
     } else {
       setChatMessages((prev) => [...prev, { role: "assistant", text: "Sorry, something went wrong — try again." }]);
     }
+  }
+
+  function handleGeneratePacking() {
+    generatePacking({
+      destination: form.destination,
+      days: Math.min(nights, 10),
+      departDate: form.departDate,
+      returnDate: form.returnDate,
+      interests,
+      faithTradition: selectedFaith?.name || null,
+      travelParty: prefs.travelParty,
+      itineraryPlan,
+    });
+  }
+
+  function togglePackedItem(key) {
+    setPackedItems((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   async function handleToggleNearby() {
@@ -1055,6 +1075,47 @@ export default function App() {
               Send
             </button>
           </div>
+        </div>
+
+        <div className="packing-box">
+          <div className="panel-head" style={{ marginBottom: 16 }}>
+            <div>
+              <h2 style={{ fontSize: "1.25rem" }}>Packing list</h2>
+              <p style={{ fontSize: "0.85rem" }}>Built from your destination, dates, and planned activities.</p>
+            </div>
+          </div>
+          {!packingCategories && (
+            <button className="book-btn" onClick={handleGeneratePacking} disabled={packingLoading}>
+              {packingLoading ? "Building your list…" : "Generate packing list"}
+            </button>
+          )}
+          {packingWarning && <p className="pref-hint" style={{ marginTop: 10 }}>{packingWarning}</p>}
+          {!packingUsedAI && packingCategories && (
+            <div className="demo-note" style={{ marginBottom: 16 }}>General list — add ANTHROPIC_API_KEY in server/.env for a list tailored to this specific trip.</div>
+          )}
+          {packingCategories && (
+            <>
+              <div className="packing-grid">
+                {packingCategories.map((cat) => (
+                  <div key={cat.category} className="packing-category">
+                    <div className="pref-label">{cat.category}</div>
+                    {cat.items.map((item) => {
+                      const key = `${cat.category}::${item}`;
+                      return (
+                        <label key={key} className="packing-item">
+                          <input type="checkbox" checked={!!packedItems[key]} onChange={() => togglePackedItem(key)} />
+                          <span className={packedItems[key] ? "packed" : ""}>{item}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+              <button className="book-btn secondary" style={{ marginTop: 16 }} onClick={handleGeneratePacking} disabled={packingLoading}>
+                {packingLoading ? "Rebuilding…" : "Regenerate"}
+              </button>
+            </>
+          )}
         </div>
       </section>
 
