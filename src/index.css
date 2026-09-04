@@ -143,6 +143,8 @@ section.panel:last-of-type{border-bottom:none;}
 .bar{height:10px; border-radius:999px; background:rgba(255,255,255,0.15); margin-top:16px; display:flex; overflow:hidden;}
 .bar > span{height:100%;}
 .save-callout{margin-top:20px; border:1px dashed var(--gold); border-radius:12px; padding:14px 16px; background:#FBF4E6; font-size:0.85rem; display:flex; gap:10px; align-items:flex-start;}
+.share-link-box{display:flex; gap:8px; margin-top:10px;}
+.share-link-box input{flex:1; border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-size:0.82rem; background:var(--paper-dim); color:var(--ink); font-family:'Inter',sans-serif;}
 
 .itinerary{position:relative; padding-left:34px;}
 .itinerary::before{content:''; position:absolute; left:9px; top:6px; bottom:6px; width:2px; background:var(--line);}

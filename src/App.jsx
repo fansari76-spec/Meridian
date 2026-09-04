@@ -7,6 +7,7 @@ import { useStaySearch } from "./lib/useStaySearch.js";
 import { useItinerary } from "./lib/useItinerary.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
+import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
 
 const TABS = [
   { id: "search", label: "Flights & Stays" },
@@ -151,6 +152,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [shareUrl, setShareUrl] = useState(null);
+  const [shareStatus, setShareStatus] = useState(null);
 
   const { search, loading, error, results } = useFlightSearch();
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
@@ -164,6 +167,31 @@ export default function App() {
   useEffect(() => {
     if (user) loadTrips(user.uid).then(setTrips);
   }, [user]);
+
+  // If this page was opened via a "Duplicate this trip" link
+  // (?duplicate=<id>), pre-fill the search form and preferences from
+  // that shared trip so the visitor starts from a real starting point
+  // instead of a blank form.
+  useEffect(() => {
+    const dupId = new URLSearchParams(window.location.search).get("duplicate");
+    if (!dupId) return;
+    getSharedTrip(dupId).then((trip) => {
+      if (!trip) return;
+      setForm((f) => ({
+        ...f,
+        origin: trip.origin || f.origin,
+        destination: trip.destination || f.destination,
+        departDate: trip.departDate || f.departDate,
+        returnDate: trip.returnDate || f.returnDate,
+        travelers: trip.travelers || f.travelers,
+      }));
+      if (trip.interests) setInterests(trip.interests);
+      if (trip.cuisine) setCuisine(trip.cuisine);
+      if (trip.prefs) setPrefs((p) => ({ ...p, ...trip.prefs }));
+      setSaveStatus("Loaded from a shared trip — search above to get real flights and hotels for these dates.");
+      setActiveTab("itinerary");
+    });
+  }, []);
 
   // Fetch stays once on load and whenever the destination or dates change.
   useEffect(() => {
@@ -289,6 +317,34 @@ export default function App() {
     });
     setTrips((prev) => [trip, ...prev]);
     setSaveStatus("Trip saved.");
+  }
+
+  async function handleShareTrip() {
+    setShareStatus("Creating your shareable link…");
+    try {
+      const id = await saveSharedTrip({
+        origin: form.origin,
+        destination: form.destination,
+        departDate: form.departDate,
+        returnDate: form.returnDate,
+        travelers: Number(form.travelers) || 1,
+        budget,
+        itineraryPlan,
+        interests,
+        cuisine,
+        prefs,
+      });
+      const url = `${window.location.origin}/trip/${id}`;
+      setShareUrl(url);
+      setShareStatus(null);
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).catch(() => {});
+        setShareStatus("Link copied to your clipboard.");
+      }
+    } catch (err) {
+      setShareUrl(null);
+      setShareStatus(err.message || "Couldn't create a share link.");
+    }
   }
 
   return (
@@ -645,10 +701,24 @@ export default function App() {
                 </div>
               </div>
             )}
-            <button className="book-btn" style={{ marginTop: 20 }} onClick={handleSaveTrip}>
-              Save this trip
-            </button>
+            <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
+              <button className="book-btn" style={{ marginTop: 0 }} onClick={handleSaveTrip}>
+                Save this trip
+              </button>
+              <button className="book-btn secondary" style={{ marginTop: 0 }} onClick={handleShareTrip}>
+                Share this trip →
+              </button>
+            </div>
             {saveStatus && <p style={{ fontSize: "0.82rem", color: "#5A5F68", marginTop: 8 }}>{saveStatus}</p>}
+            {shareStatus && <p style={{ fontSize: "0.82rem", color: "#5A5F68", marginTop: 8 }}>{shareStatus}</p>}
+            {shareUrl && (
+              <div className="share-link-box">
+                <input readOnly value={shareUrl} onFocus={(e) => e.target.select()} />
+                <a href={shareUrl} target="_blank" rel="noreferrer" className="book-btn secondary" style={{ margin: 0 }}>
+                  Open →
+                </a>
+              </div>
+            )}
           </div>
           <div className="budget-total">
             <div className="label">Estimated total, {form.travelers} traveler{form.travelers > 1 ? "s" : ""}</div>
