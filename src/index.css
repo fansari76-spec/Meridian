@@ -252,6 +252,19 @@ section.panel:last-of-type{border-bottom:none;}
 .account-section-title{font-weight:700; font-size:0.95rem; margin-bottom:10px;}
 .account-prefs-list{font-size:0.88rem; color:#3A3F49; line-height:1.8; padding-left:18px;}
 
+.account-accordion{max-width:560px; display:flex; flex-direction:column; gap:10px;}
+.account-item{background:var(--white); border:1px solid var(--line); border-radius:14px; overflow:hidden; transition:box-shadow .15s ease;}
+.account-item[open]{box-shadow:0 8px 24px -16px rgba(20,27,48,0.2);}
+.account-item summary{display:flex; align-items:center; gap:12px; padding:16px 20px; cursor:pointer; list-style:none; user-select:none;}
+.account-item summary::-webkit-details-marker{display:none;}
+.account-item summary:hover{background:var(--paper-dim);}
+.account-item-icon{font-size:1.15rem; flex-shrink:0;}
+.account-item-title{font-weight:600; font-size:0.95rem; flex:1;}
+.account-item-preview{font-size:0.8rem; color:#8A8F97;}
+.account-item-chevron{font-size:1.1rem; color:#8A8F97; transition:transform .15s ease; flex-shrink:0;}
+.account-item[open] .account-item-chevron{transform:rotate(90deg);}
+.account-item-body{padding:0 20px 20px 52px; animation:fadeIn .15s ease;}
+
 footer{padding:36px 0; text-align:center; color:#8A8F97; font-size:0.82rem;}
 
 @media (max-width:880px){

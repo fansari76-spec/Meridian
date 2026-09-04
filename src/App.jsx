@@ -773,9 +773,11 @@ export default function App() {
             ))}
           </nav>
           <div className="topbar-right">
-            <button className="signin-btn" onClick={() => setActiveTab("account")}>
-              {user ? (user.displayName || user.email?.split("@")[0] || "Account") : "Sign up free"}
-            </button>
+            {!user && (
+              <button className="signin-btn" onClick={() => setActiveTab("account")}>
+                Sign up free
+              </button>
+            )}
             <button className="mobile-menu-btn" aria-label="Open menu" onClick={() => setMobileNavOpen((v) => !v)}>
               {mobileNavOpen ? "✕" : "☰"}
             </button>
@@ -1707,56 +1709,86 @@ export default function App() {
               </div>
             </div>
 
-            <div className="account-section">
-              <div className="account-section-title">Trip preferences</div>
-              {answeredCount(prefs) === 0 ? (
-                <p className="pref-hint">Nothing set yet — answer a few questions on the Preferences tab to personalize your trips.</p>
-              ) : (
-                <ul className="account-prefs-list">
-                  {prefs.travelParty && <li><strong>Traveling as:</strong> {prefs.travelParty}</li>}
-                  {prefs.pace && <li><strong>Pace:</strong> {prefs.pace}</li>}
-                  {prefs.budgetStyle && <li><strong>Budget style:</strong> {prefs.budgetStyle}</li>}
-                  {prefs.stayType && <li><strong>Preferred stay:</strong> {prefs.stayType}</li>}
-                  {prefs.flightPriority && <li><strong>Flight priority:</strong> {prefs.flightPriority}</li>}
-                  {prefs.occasion && prefs.occasion !== "None" && <li><strong>Occasion:</strong> {prefs.occasion}</li>}
-                  {prefs.dietaryRestrictions?.length > 0 && <li><strong>Dietary:</strong> {prefs.dietaryRestrictions.join(", ")}</li>}
-                  {prefs.favoriteCuisines?.length > 0 && <li><strong>Favorite cuisines:</strong> {prefs.favoriteCuisines.join(" → ")}</li>}
-                </ul>
-              )}
-              <button className="book-btn secondary" style={{ marginTop: 12 }} onClick={() => setActiveTab("preferences")}>
-                Edit preferences →
-              </button>
-              <p className="pref-hint" style={{ marginTop: 8 }}>Saved to your account — these follow you across sessions and devices now.</p>
+            <div className="account-accordion">
+              <details className="account-item" open>
+                <summary>
+                  <span className="account-item-icon">🧭</span>
+                  <span className="account-item-title">Trip preferences</span>
+                  <span className="account-item-preview">{answeredCount(prefs) === 0 ? "Not set" : `${answeredCount(prefs)} answered`}</span>
+                  <span className="account-item-chevron">›</span>
+                </summary>
+                <div className="account-item-body">
+                  {answeredCount(prefs) === 0 ? (
+                    <p className="pref-hint">Nothing set yet — answer a few questions on the Preferences tab to personalize your trips.</p>
+                  ) : (
+                    <ul className="account-prefs-list">
+                      {prefs.travelParty && <li><strong>Traveling as:</strong> {prefs.travelParty}</li>}
+                      {prefs.pace && <li><strong>Pace:</strong> {prefs.pace}</li>}
+                      {prefs.budgetStyle && <li><strong>Budget style:</strong> {prefs.budgetStyle}</li>}
+                      {prefs.stayType && <li><strong>Preferred stay:</strong> {prefs.stayType}</li>}
+                      {prefs.flightPriority && <li><strong>Flight priority:</strong> {prefs.flightPriority}</li>}
+                      {prefs.occasion && prefs.occasion !== "None" && <li><strong>Occasion:</strong> {prefs.occasion}</li>}
+                      {prefs.dietaryRestrictions?.length > 0 && <li><strong>Dietary:</strong> {prefs.dietaryRestrictions.join(", ")}</li>}
+                      {prefs.favoriteCuisines?.length > 0 && <li><strong>Favorite cuisines:</strong> {prefs.favoriteCuisines.join(" → ")}</li>}
+                    </ul>
+                  )}
+                  <button className="book-btn secondary" style={{ marginTop: 12 }} onClick={() => setActiveTab("preferences")}>
+                    Edit preferences →
+                  </button>
+                  <p className="pref-hint" style={{ marginTop: 8 }}>Saved to your account — these follow you across sessions and devices now.</p>
+                </div>
+              </details>
+
+              <details className="account-item">
+                <summary>
+                  <span className="account-item-icon">🧳</span>
+                  <span className="account-item-title">Saved trips</span>
+                  <span className="account-item-preview">{trips.length === 0 ? "None yet" : `${trips.length} saved`}</span>
+                  <span className="account-item-chevron">›</span>
+                </summary>
+                <div className="account-item-body">
+                  {trips.length === 0 ? (
+                    <p className="pref-hint">No trips saved yet — build one on the Budget tab.</p>
+                  ) : (
+                    trips.map((t) => (
+                      <div className="trip-row" key={t.id}>
+                        <span>{t.origin} → {t.destination}</span>
+                        <span>${t.total?.toLocaleString?.() ?? t.total}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </details>
+
+              <details className="account-item">
+                <summary>
+                  <span className="account-item-icon">🔒</span>
+                  <span className="account-item-title">Sign-in & security</span>
+                  <span className="account-item-preview">Via {user.providerData?.[0]?.providerId?.includes("google") ? "Google" : user.providerData?.[0]?.providerId?.includes("apple") ? "Apple" : "email"}</span>
+                  <span className="account-item-chevron">›</span>
+                </summary>
+                <div className="account-item-body">
+                  <p className="pref-hint">
+                    You're signed in via {user.providerData?.[0]?.providerId?.includes("google") ? "Google" : user.providerData?.[0]?.providerId?.includes("apple") ? "Apple" : "your email provider"}.
+                    Your password (if any) is managed by them, not Meridian — there's nothing to change here.
+                  </p>
+                </div>
+              </details>
+
+              <details className="account-item">
+                <summary>
+                  <span className="account-item-icon">💳</span>
+                  <span className="account-item-title">Billing</span>
+                  <span className="account-item-preview">Free plan</span>
+                  <span className="account-item-chevron">›</span>
+                </summary>
+                <div className="account-item-body">
+                  <p className="pref-hint">Meridian is free to plan on — there's no subscription or payment on file, because nothing is charged yet.</p>
+                </div>
+              </details>
             </div>
 
-            <div className="account-section">
-              <div className="account-section-title">Saved trips</div>
-              {trips.length === 0 ? (
-                <p className="pref-hint">No trips saved yet — build one on the Budget tab.</p>
-              ) : (
-                trips.map((t) => (
-                  <div className="trip-row" key={t.id}>
-                    <span>{t.origin} → {t.destination}</span>
-                    <span>${t.total?.toLocaleString?.() ?? t.total}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="account-section">
-              <div className="account-section-title">Sign-in & security</div>
-              <p className="pref-hint">
-                You're signed in via {user.providerData?.[0]?.providerId?.includes("google") ? "Google" : user.providerData?.[0]?.providerId?.includes("apple") ? "Apple" : "your email provider"}.
-                Your password (if any) is managed by them, not Meridian — there's nothing to change here.
-              </p>
-            </div>
-
-            <div className="account-section">
-              <div className="account-section-title">Billing</div>
-              <p className="pref-hint">Meridian is free to plan on — there's no subscription or payment on file, because nothing is charged yet.</p>
-            </div>
-
-            <button className="book-btn secondary" style={{ marginTop: 8 }} onClick={signOutUser}>Sign out</button>
+            <button className="book-btn secondary" style={{ marginTop: 24 }} onClick={signOutUser}>Sign out</button>
           </>
         )}
       </section>
