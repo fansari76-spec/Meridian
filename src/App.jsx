@@ -8,6 +8,10 @@ import { useItinerary } from "./lib/useItinerary.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
 import { saveTrip, loadTrips } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
+import { upsertUserProfile, findUserByEmail } from "./lib/users.js";
+import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
+import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
+import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
 
 const TABS = [
   { id: "search", label: "Flights & Stays" },
@@ -15,7 +19,15 @@ const TABS = [
   { id: "budget", label: "Budget" },
   { id: "itinerary", label: "Itinerary" },
   { id: "pilgrimage", label: "Pilgrimage" },
+  { id: "nearby", label: "Nearby" },
   { id: "account", label: "Account" },
+];
+
+const PRESET_PING_MESSAGES = [
+  "Hey! I see you're nearby — grab a coffee? ☕",
+  "Want to grab a bite together? 🍽️",
+  "Free to explore together for a bit?",
+  "Up for hanging out while we're both here?",
 ];
 
 const INTEREST_OPTIONS = [
@@ -155,6 +167,21 @@ export default function App() {
   const [shareUrl, setShareUrl] = useState(null);
   const [shareStatus, setShareStatus] = useState(null);
 
+  // --- Nearby friends & messaging state ---
+  const [friends, setFriends] = useState([]);
+  const [addFriendEmail, setAddFriendEmail] = useState("");
+  const [addFriendStatus, setAddFriendStatus] = useState(null);
+  const [isNearby, setIsNearby] = useState(false);
+  const [nearbyStatus, setNearbyStatus] = useState(null);
+  const [friendPresence, setFriendPresence] = useState({}); // uid -> presence doc or null
+  const [checkingNearby, setCheckingNearby] = useState(false);
+  const [composeTarget, setComposeTarget] = useState(null); // friend object
+  const [composeText, setComposeText] = useState("");
+  const [composeStatus, setComposeStatus] = useState(null);
+  const [inbox, setInbox] = useState([]);
+  const [sentPings, setSentPings] = useState([]);
+  const [replyDrafts, setReplyDrafts] = useState({});
+
   const { search, loading, error, results } = useFlightSearch();
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI } = useItinerary();
@@ -166,6 +193,27 @@ export default function App() {
 
   useEffect(() => {
     if (user) loadTrips(user.uid).then(setTrips);
+  }, [user]);
+
+  // Register this user in the findable-by-email profile collection,
+  // load their friend list, and subscribe to their inbox/sent
+  // messages in real time (Firestore's onSnapshot pushes updates
+  // automatically — no polling needed).
+  useEffect(() => {
+    if (!user) {
+      setFriends([]);
+      setInbox([]);
+      setSentPings([]);
+      return;
+    }
+    upsertUserProfile(user);
+    listFriends(user.uid).then(setFriends);
+    const unsubInbox = subscribeToInbox(user.uid, setInbox);
+    const unsubSent = subscribeToSent(user.uid, setSentPings);
+    return () => {
+      unsubInbox();
+      unsubSent();
+    };
   }, [user]);
 
   // If this page was opened via a "Duplicate this trip" link
@@ -345,6 +393,107 @@ export default function App() {
       setShareUrl(null);
       setShareStatus(err.message || "Couldn't create a share link.");
     }
+  }
+
+  // --- Nearby friends & messaging handlers ---
+
+  async function handleAddFriend(e) {
+    e.preventDefault();
+    setAddFriendStatus("Looking that up…");
+    try {
+      const found = await findUserByEmail(addFriendEmail);
+      if (!found) {
+        setAddFriendStatus("No Meridian account found with that email yet.");
+        return;
+      }
+      if (found.uid === user.uid) {
+        setAddFriendStatus("That's your own account.");
+        return;
+      }
+      await addFriend(user.uid, found);
+      setFriends((prev) => (prev.some((f) => f.uid === found.uid) ? prev : [...prev, found]));
+      setAddFriendEmail("");
+      setAddFriendStatus(`Added ${found.email}.`);
+    } catch (err) {
+      setAddFriendStatus(err.message || "Couldn't add that friend.");
+    }
+  }
+
+  async function handleRemoveFriend(uid) {
+    await removeFriend(user.uid, uid);
+    setFriends((prev) => prev.filter((f) => f.uid !== uid));
+  }
+
+  async function handleToggleNearby() {
+    if (!user) {
+      setNearbyStatus("Sign in first to use nearby messaging.");
+      setActiveTab("account");
+      return;
+    }
+    if (isNearby) {
+      await clearNearby(user.uid);
+      setIsNearby(false);
+      setNearbyStatus("You're no longer marked as nearby.");
+      return;
+    }
+    setNearbyStatus("Getting your location…");
+    try {
+      const coords = await getBrowserLocation();
+      await setNearby(user.uid, { ...coords, label: form.destination });
+      setIsNearby(true);
+      setNearbyStatus(`You're marked as nearby ${form.destination} for the next 12 hours (or until you turn this off).`);
+    } catch (err) {
+      setNearbyStatus(err.message);
+    }
+  }
+
+  async function handleCheckWhosNearby() {
+    if (!user) return;
+    setCheckingNearby(true);
+    try {
+      const myPresence = await getPresence(user.uid);
+      const results = {};
+      for (const f of friends) {
+        const p = await getPresence(f.uid);
+        if (p && myPresence) {
+          results[f.uid] = { ...p, milesAway: distanceMiles(myPresence, p) };
+        } else {
+          results[f.uid] = null;
+        }
+      }
+      setFriendPresence(results);
+      if (!myPresence) setNearbyStatus("Turn on \"I'm nearby\" above first so we can compare locations.");
+    } finally {
+      setCheckingNearby(false);
+    }
+  }
+
+  async function handleSendPing() {
+    if (!composeTarget || !composeText.trim()) return;
+    setComposeStatus("Sending…");
+    try {
+      await sendPing({
+        fromUserId: user.uid,
+        fromName: user.displayName || user.email,
+        toUserId: composeTarget.uid,
+        message: composeText,
+      });
+      setComposeStatus("Sent — no read receipt will show them you've messaged unless they choose to reply.");
+      setComposeText("");
+    } catch (err) {
+      setComposeStatus(err.message);
+    }
+  }
+
+  async function handleReplyToPing(pingId) {
+    const text = replyDrafts[pingId];
+    if (!text?.trim()) return;
+    await replyToPing(pingId, text);
+    setReplyDrafts((prev) => ({ ...prev, [pingId]: "" }));
+  }
+
+  async function handleDismissPing(pingId) {
+    await dismissPing(pingId);
   }
 
   return (
@@ -826,6 +975,154 @@ export default function App() {
         <p style={{ marginTop: 18, fontSize: "0.85rem", color: "#5A5F68" }}>
           Other traditions — Sikh, Jain, Baháʼí, Shinto, and more — are searchable directly; this grid shows the most requested starting points.
         </p>
+      </section>
+
+      {/* ===================== NEARBY ===================== */}
+      <section className="panel wrap" style={{ display: activeTab === "nearby" ? "block" : "none" }}>
+        <div className="panel-head">
+          <div>
+            <h2>Nearby friends</h2>
+            <p>See which of your Meridian friends are around right now and send them a real message — never marked "read" unless they choose to reply.</p>
+          </div>
+        </div>
+
+        {!user ? (
+          <div className="demo-note">Sign in (Account tab) to use nearby messaging.</div>
+        ) : (
+          <>
+            <div className="nearby-note">
+              This works while Meridian is open in your browser — you and a friend both opt in, and it checks your location right now. A native app version would let this work in the background without either of you having the app open.
+            </div>
+
+            <div className="nearby-toggle-row">
+              <button className={`book-btn ${isNearby ? "secondary" : ""}`} onClick={handleToggleNearby}>
+                {isNearby ? "Turn off \"I'm nearby\"" : "I'm nearby — turn on"}
+              </button>
+              {friends.length > 0 && (
+                <button className="book-btn secondary" onClick={handleCheckWhosNearby} disabled={checkingNearby}>
+                  {checkingNearby ? "Checking…" : "Check who's nearby"}
+                </button>
+              )}
+            </div>
+            {nearbyStatus && <p className="pref-hint">{nearbyStatus}</p>}
+
+            <div style={{ marginTop: 32 }}>
+              <div className="pref-label">Add a friend by email</div>
+              <form onSubmit={handleAddFriend} style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <input
+                  type="email"
+                  placeholder="friend@email.com"
+                  value={addFriendEmail}
+                  onChange={(e) => setAddFriendEmail(e.target.value)}
+                  style={{ flex: 1, minWidth: 220, border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem" }}
+                  required
+                />
+                <button className="book-btn" type="submit" style={{ margin: 0 }}>Add friend</button>
+              </form>
+              {addFriendStatus && <p className="pref-hint">{addFriendStatus}</p>}
+              <p className="pref-hint">They need a Meridian account already — invite them to sign up first if not found.</p>
+            </div>
+
+            {friends.length > 0 && (
+              <div style={{ marginTop: 32 }}>
+                <div className="pref-label">Your friends</div>
+                {friends.map((f) => {
+                  const presence = friendPresence[f.uid];
+                  return (
+                    <div key={f.uid} className="friend-row">
+                      <div>
+                        <div className="friend-email">{f.displayName || f.email}</div>
+                        {presence ? (
+                          <div className="friend-nearby-badge">📍 Nearby {presence.label || ""} · ~{presence.milesAway?.toFixed(1)} mi away</div>
+                        ) : (
+                          <div className="friend-offline">Not currently nearby</div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {presence && (
+                          <button className="book-btn" style={{ margin: 0 }} onClick={() => { setComposeTarget(f); setComposeStatus(null); }}>
+                            Message
+                          </button>
+                        )}
+                        <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleRemoveFriend(f.uid)}>
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {composeTarget && (
+              <div className="compose-box">
+                <div className="pref-label">Message {composeTarget.displayName || composeTarget.email}</div>
+                <div className="chip-grid" style={{ marginBottom: 12 }}>
+                  {PRESET_PING_MESSAGES.map((msg) => (
+                    <div key={msg} className="chip" style={{ cursor: "pointer" }} onClick={() => setComposeText(msg)}>
+                      {msg}
+                    </div>
+                  ))}
+                </div>
+                <textarea
+                  className="pref-textarea"
+                  placeholder="Or write your own message…"
+                  value={composeText}
+                  onChange={(e) => setComposeText(e.target.value)}
+                />
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button className="book-btn" onClick={handleSendPing}>Send</button>
+                  <button className="book-btn secondary" onClick={() => { setComposeTarget(null); setComposeText(""); }}>Cancel</button>
+                </div>
+                {composeStatus && <p className="pref-hint">{composeStatus}</p>}
+              </div>
+            )}
+
+            <div style={{ marginTop: 40 }}>
+              <div className="pref-label">Your inbox</div>
+              {inbox.filter((p) => !p.dismissedByRecipient).length === 0 && (
+                <p className="pref-hint">Nothing yet — messages from friends will show up here.</p>
+              )}
+              {inbox
+                .filter((p) => !p.dismissedByRecipient)
+                .map((p) => (
+                  <div key={p.id} className="ping-card">
+                    <div className="ping-from">{p.fromName}</div>
+                    <div className="ping-message">{p.message}</div>
+                    {p.status === "replied" ? (
+                      <div className="ping-replied-note">You replied: "{p.reply}"</div>
+                    ) : (
+                      <div className="ping-reply-row">
+                        <input
+                          placeholder="Write a reply…"
+                          value={replyDrafts[p.id] || ""}
+                          onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                        />
+                        <button className="book-btn" style={{ margin: 0 }} onClick={() => handleReplyToPing(p.id)}>Reply</button>
+                        <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleDismissPing(p.id)}>Dismiss</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+
+            {sentPings.length > 0 && (
+              <div style={{ marginTop: 32 }}>
+                <div className="pref-label">Messages you've sent</div>
+                {sentPings.map((p) => (
+                  <div key={p.id} className="ping-card ping-card--sent">
+                    <div className="ping-message">{p.message}</div>
+                    {p.status === "replied" ? (
+                      <div className="ping-replied-note">They replied: "{p.reply}"</div>
+                    ) : (
+                      <div className="pref-hint">No reply yet — that's all we ever show you here, on purpose.</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       {/* ===================== ACCOUNT ===================== */}
