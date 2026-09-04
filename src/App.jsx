@@ -800,7 +800,7 @@ export default function App() {
         )}
       </header>
 
-      <section className="hero wrap">
+      <section className="hero wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
         <div className="hero-grid">
           <div>
             <div className="eyebrow-plain">One trip, every piece, in one place</div>
