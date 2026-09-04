@@ -9,14 +9,14 @@ export function useItinerary() {
   const [plan, setPlan] = useState(null);
   const [usedAI, setUsedAI] = useState(false);
 
-  const generate = useCallback(async ({ destination, days, interests, cuisine, faithTradition, travelParty, pace, budgetStyle, occasion, accessibilityNotes, otherNotes }) => {
+  const generate = useCallback(async ({ destination, days, interests, cuisine, faithTradition, travelParty, pace, budgetStyle, occasion, dietaryRestrictions, favoriteCuisines, accessibilityNotes, otherNotes }) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/itinerary/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination, days, interests, cuisine, faithTradition, travelParty, pace, budgetStyle, occasion, accessibilityNotes, otherNotes }),
+        body: JSON.stringify({ destination, days, interests, cuisine, faithTradition, travelParty, pace, budgetStyle, occasion, dietaryRestrictions, favoriteCuisines, accessibilityNotes, otherNotes }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Itinerary generation failed");
       const data = await res.json();

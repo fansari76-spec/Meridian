@@ -29,6 +29,9 @@ const INTEREST_OPTIONS = [
 
 const CUISINE_OPTIONS = ["Halal", "Kosher", "Vegetarian", "Vegan", "Gluten-free", "Pescatarian"];
 
+const DIETARY_OPTIONS = ["Halal", "Kosher", "Vegetarian", "Vegan", "Gluten-free", "Pescatarian", "Nut allergy", "Dairy-free"];
+const CUISINE_TYPE_OPTIONS = ["Italian", "Japanese", "Mexican", "Indian", "Thai", "Mediterranean", "French", "Chinese", "Middle Eastern", "American"];
+
 // Every field here is optional — no question is required to search,
 // book, or get an itinerary. Answers just sharpen the recommendations.
 const PREFERENCE_QUESTIONS = [
@@ -44,9 +47,22 @@ function toggleSingleAnswer(prefs, setPrefs, key, value) {
   setPrefs((prev) => ({ ...prev, [key]: prev[key] === value ? null : value }));
 }
 
+// Multi-select toggle: adds to the end of the array if not present
+// (preserving click order — used for "rank your favorites"), removes
+// it if it's already there.
+function toggleMultiAnswer(setPrefs, key, value) {
+  setPrefs((prev) => {
+    const current = prev[key] || [];
+    const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+    return { ...prev, [key]: next };
+  });
+}
+
 function answeredCount(prefs) {
   let count = 0;
   for (const q of PREFERENCE_QUESTIONS) if (prefs[q.key]) count++;
+  if (prefs.dietaryRestrictions?.length) count++;
+  if (prefs.favoriteCuisines?.length) count++;
   if (prefs.accessibilityNotes?.trim()) count++;
   if (prefs.otherNotes?.trim()) count++;
   return count;
@@ -126,6 +142,8 @@ export default function App() {
     stayType: null,
     flightPriority: null,
     occasion: null,
+    dietaryRestrictions: [],
+    favoriteCuisines: [],
     accessibilityNotes: "",
     otherNotes: "",
   });
@@ -171,6 +189,8 @@ export default function App() {
         pace: prefs.pace,
         budgetStyle: prefs.budgetStyle,
         occasion: prefs.occasion,
+        dietaryRestrictions: prefs.dietaryRestrictions,
+        favoriteCuisines: prefs.favoriteCuisines,
         accessibilityNotes: prefs.accessibilityNotes || null,
         otherNotes: prefs.otherNotes || null,
       });
@@ -353,7 +373,7 @@ export default function App() {
             <div className="top-picks-grid">
               {topFlight && (
                 <div className="top-pick-card">
-                  <div className="top-pick-kind">Flight</div>
+                  <div className="top-pick-kind">Flight {results?.usedMockData === false && <span className="live-dot">● Live price</span>}</div>
                   <div className="top-pick-name">{topFlight.airline || "Selected airline"}</div>
                   <div className="top-pick-why">Picked for {topFlightReason()}</div>
                   <div className="top-pick-price">${Math.round(topFlight.totalAmount)} <span>round trip / traveler</span></div>
@@ -361,10 +381,11 @@ export default function App() {
               )}
               {topStay && (
                 <div className="top-pick-card">
-                  <div className="top-pick-kind">Stay</div>
+                  <div className="top-pick-kind">Stay {!staysUsedMock && <span className="live-dot">● Real hotel</span>}</div>
                   <div className="top-pick-name">{topStay.name}</div>
                   <div className="top-pick-why">Picked for {topStayReason()}</div>
-                  <div className="top-pick-price">${topStay.price} <span>/night{staysUsedMock ? "" : " (est.)"}</span></div>
+                  <div className="top-pick-price">${topStay.price} <span>/night{staysUsedMock ? "" : " (rough estimate)"}</span></div>
+                  {!staysUsedMock && <a href={topStay.url} target="_blank" rel="noreferrer" className="top-pick-real-link">See the real, current rate →</a>}
                 </div>
               )}
             </div>
@@ -517,6 +538,45 @@ export default function App() {
             </div>
           </div>
         ))}
+
+        <div className="pref-question">
+          <div className="pref-label">Any dietary restrictions? (select all that apply)</div>
+          <div className="chip-grid">
+            {DIETARY_OPTIONS.map((opt) => (
+              <div
+                key={opt}
+                className={`chip ${prefs.dietaryRestrictions.includes(opt) ? "active" : ""}`}
+                onClick={() => toggleMultiAnswer(setPrefs, "dietaryRestrictions", opt)}
+                style={{ cursor: "pointer" }}
+              >
+                {opt}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pref-question">
+          <div className="pref-label">Favorite cuisines — click in order, favorite first (optional)</div>
+          <div className="chip-grid">
+            {CUISINE_TYPE_OPTIONS.map((opt) => {
+              const rank = prefs.favoriteCuisines.indexOf(opt);
+              return (
+                <div
+                  key={opt}
+                  className={`chip ${rank > -1 ? "active" : ""}`}
+                  onClick={() => toggleMultiAnswer(setPrefs, "favoriteCuisines", opt)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {rank > -1 && <span className="chip-rank">{rank + 1}</span>}
+                  {opt}
+                </div>
+              );
+            })}
+          </div>
+          {prefs.favoriteCuisines.length > 0 && (
+            <div className="pref-hint">In order: {prefs.favoriteCuisines.join(" → ")}</div>
+          )}
+        </div>
 
         <div className="pref-question">
           <div className="pref-label">Any accessibility needs we should plan around? (optional)</div>

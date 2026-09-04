@@ -32,6 +32,8 @@ router.post("/generate", async (req, res) => {
     pace = null,
     budgetStyle = null,
     occasion = null,
+    dietaryRestrictions = [],
+    favoriteCuisines = [],
     accessibilityNotes = null,
     otherNotes = null,
   } = req.body;
@@ -40,7 +42,7 @@ router.post("/generate", async (req, res) => {
     return res.status(400).json({ error: "destination is required." });
   }
 
-  const prefs = { travelParty, pace, budgetStyle, occasion, accessibilityNotes, otherNotes };
+  const prefs = { travelParty, pace, budgetStyle, occasion, dietaryRestrictions, favoriteCuisines, accessibilityNotes, otherNotes };
 
   try {
     if (isLiveMode()) {
@@ -91,7 +93,7 @@ async function generateWithClaude({ destination, days, interests, cuisine, faith
 }
 
 function buildPrompt({ destination, days, interests, cuisine, faithTradition, prefs = {} }) {
-  const { travelParty, pace, budgetStyle, occasion, accessibilityNotes, otherNotes } = prefs;
+  const { travelParty, pace, budgetStyle, occasion, dietaryRestrictions, favoriteCuisines, accessibilityNotes, otherNotes } = prefs;
   const paceGuidance = {
     "Packed & efficient": "Pack each day with 4 activities — this traveler wants to see and do as much as possible.",
     "Slow & relaxed": "Keep each day to 2-3 unhurried activities with real downtime — this traveler wants a relaxed pace, not a checklist.",
@@ -111,6 +113,8 @@ ${travelParty ? `Who's traveling: ${travelParty} — tailor activity choices acc
 ${paceGuidance}
 ${budgetGuidance}
 ${occasion && occasion !== "None" ? `This trip is for a ${occasion} — include at least one fitting special-occasion moment.` : ""}
+${dietaryRestrictions?.length ? `STRICT dietary restrictions to respect for every meal/food recommendation: ${dietaryRestrictions.join(", ")}. Do not suggest anything that conflicts with these.` : ""}
+${favoriteCuisines?.length ? `Favorite cuisines, in order of preference: ${favoriteCuisines.join(" > ")}. Favor these cuisines for meal recommendations where it fits the destination.` : ""}
 ${accessibilityNotes ? `Accessibility needs to accommodate: ${accessibilityNotes}` : ""}
 ${otherNotes ? `Additional notes from the traveler: ${otherNotes}` : ""}
 
