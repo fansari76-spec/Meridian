@@ -61,11 +61,15 @@ export default function App() {
     if (user) loadTrips(user.uid).then(setTrips);
   }, [user]);
 
-  // Fetch stays once on load and whenever the destination changes.
+  // Fetch stays once on load and whenever the destination or dates change.
   useEffect(() => {
-    searchStays(form.destination);
+    searchStays(form.destination, {
+      checkIn: form.departDate,
+      checkOut: form.returnDate,
+      travelers: form.travelers,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.destination]);
+  }, [form.destination, form.departDate, form.returnDate, form.travelers]);
 
   // Regenerate the itinerary whenever destination, interests, cuisine,
   // or trip length change — debounced slightly so rapid chip-toggling
@@ -321,6 +325,11 @@ export default function App() {
                       <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => setSelectedStay(s)}>
                         {selectedStay?.id === s.id ? "Selected" : "Use this"}
                       </button>
+                      {!staysUsedMock && s.url && (
+                        <a className="book-btn" style={{ margin: 0 }} href={s.url} target="_blank" rel="noreferrer">
+                          View & book →
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>

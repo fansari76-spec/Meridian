@@ -31,7 +31,7 @@ function isLiveMode() {
 }
 
 router.post("/search", async (req, res) => {
-  const { location } = req.body;
+  const { location, checkIn, checkOut, travelers = 2 } = req.body;
 
   if (!isLiveMode()) {
     return res.json({ stays: DEMO_STAYS, usedMockData: true });
@@ -42,7 +42,7 @@ router.post("/search", async (req, res) => {
   }
 
   try {
-    const stays = await searchRealHotels(location);
+    const stays = await searchRealHotels(location, { checkIn, checkOut, travelers });
     res.json({ stays, usedMockData: false });
   } catch (err) {
     console.error(err);
@@ -50,7 +50,7 @@ router.post("/search", async (req, res) => {
   }
 });
 
-async function searchRealHotels(location) {
+async function searchRealHotels(location, { checkIn, checkOut, travelers }) {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   const url = `https://places.googleapis.com/v1/places:searchText`;
 
@@ -82,8 +82,22 @@ async function searchRealHotels(location) {
     ratingCount: place.userRatingCount ?? 0,
     price: estimatePriceFromLevel(place.priceLevel),
     photo: buildPhotoUrl(place.photos?.[0], key),
-    url: place.googleMapsUri || "https://www.google.com/maps",
+    url: buildBookingComSearchUrl(place.displayName?.text, location, { checkIn, checkOut, travelers }),
   }));
+}
+
+// Links to Booking.com's own live search, pre-filled with this hotel's
+// name and the traveler's dates — the same "search + link out" model
+// used for flights. The customer sees Booking.com's real, current
+// price and books directly on their site. No API or approval needed.
+function buildBookingComSearchUrl(hotelName, location, { checkIn, checkOut, travelers }) {
+  const params = new URLSearchParams({
+    ss: hotelName ? `${hotelName}, ${location}` : location,
+  });
+  if (checkIn) params.set("checkin", checkIn);
+  if (checkOut) params.set("checkout", checkOut);
+  if (travelers) params.set("group_adults", String(travelers));
+  return `https://www.booking.com/searchresults.html?${params.toString()}`;
 }
 
 // Google's priceLevel is a rough 1-4 bucket, not a real nightly rate.

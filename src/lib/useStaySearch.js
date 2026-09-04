@@ -9,14 +9,14 @@ export function useStaySearch() {
   const [stays, setStays] = useState(null);
   const [usedMockData, setUsedMockData] = useState(true);
 
-  const search = useCallback(async (location) => {
+  const search = useCallback(async (location, options = {}) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/stays/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location }),
+        body: JSON.stringify({ location, ...options }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Stay search failed");
       const data = await res.json();
