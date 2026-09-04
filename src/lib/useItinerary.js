@@ -8,6 +8,7 @@ export function useItinerary() {
   const [error, setError] = useState(null);
   const [plan, setPlan] = useState(null);
   const [usedAI, setUsedAI] = useState(false);
+  const [warning, setWarning] = useState(null);
 
   const generate = useCallback(async ({ destination, days, interests, cuisine, faithTradition, travelParty, pace, budgetStyle, occasion, dietaryRestrictions, favoriteCuisines, accessibilityNotes, otherNotes }) => {
     setLoading(true);
@@ -22,6 +23,7 @@ export function useItinerary() {
       const data = await res.json();
       setPlan(data.plan);
       setUsedAI(data.usedAI);
+      setWarning(data.warning || null);
       return data;
     } catch (err) {
       setError(err.message);
@@ -31,5 +33,5 @@ export function useItinerary() {
     }
   }, []);
 
-  return { generate, loading, error, plan, usedAI };
+  return { generate, loading, error, plan, usedAI, warning };
 }

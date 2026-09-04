@@ -189,7 +189,7 @@ export default function App() {
 
   const { search, loading, error, results } = useFlightSearch();
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
-  const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI } = useItinerary();
+  const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI, warning: itineraryWarning } = useItinerary();
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
   const [chatPlan, setChatPlan] = useState(null); // itinerary overrides made via the concierge chat
   const [chatMessages, setChatMessages] = useState([]);
@@ -977,7 +977,9 @@ export default function App() {
           ))}
         </div>
         {!usedAI && itineraryPlan.length > 0 && (
-          <div className="demo-note" style={{ marginBottom: 20 }}>Template plan — add ANTHROPIC_API_KEY in server/.env for AI-generated, destination-specific itineraries. See README.md.</div>
+          <div className="demo-note" style={{ marginBottom: 20 }}>
+            {itineraryWarning || "Template plan — add ANTHROPIC_API_KEY in server/.env for AI-generated, destination-specific itineraries. See README.md."}
+          </div>
         )}
         {itineraryLoading && <p className="loading-line" style={{ marginBottom: 16 }}><span className="spinner" />Building your {form.destination} itinerary…</p>}
         <div className="itinerary">

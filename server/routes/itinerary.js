@@ -56,7 +56,7 @@ router.post("/generate", async (req, res) => {
     // Fall back gracefully rather than showing the user a broken tab
     // if the Claude call fails for any reason (bad key, rate limit, etc).
     const plan = generateWithTemplates({ days, interests, pace });
-    return res.json({ plan, usedAI: false, warning: "AI generation failed, showing a template plan instead." });
+    return res.json({ plan, usedAI: false, warning: `AI generation failed (${err.message}), showing a template plan instead.` });
   }
 });
 
