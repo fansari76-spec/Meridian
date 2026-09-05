@@ -158,6 +158,14 @@ function formatShortDate(iso) {
 export default function App() {
   const [activeTab, setActiveTab] = useState("search");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Contact-picker access is a real platform limitation, not
+  // something more code can fix: it only exists on Android Chrome
+  // today. No browser on iOS supports it (Apple hasn't exposed it to
+  // websites), and no desktop browser supports it either (desktops
+  // don't have a "phone contacts" concept). It'll work properly on
+  // iOS/Android once native apps exist, using each OS's own contacts
+  // framework — until then, search-by-name/email is the cross-platform path.
+  const contactPickerSupported = typeof navigator !== "undefined" && "contacts" in navigator && "ContactsManager" in window;
   const [form, setForm] = useState({
     origin: "JFK",
     destination: "LIS",
@@ -1422,12 +1430,16 @@ export default function App() {
                 <button className="book-btn" type="submit" style={{ margin: 0 }}>Add</button>
               </form>
               {addFriendStatus && <p className="pref-hint">{addFriendStatus}</p>}
-              <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts} style={{ marginTop: 6 }}>
-                {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
-              </button>
-              <p className="pref-hint" style={{ marginTop: 6 }}>
-                Phone-contact matching currently works on Android Chrome only — the iOS/Android apps will support this fully via each phone's native contact picker.
-              </p>
+              {contactPickerSupported && (
+                <>
+                  <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts} style={{ marginTop: 6 }}>
+                    {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
+                  </button>
+                  <p className="pref-hint" style={{ marginTop: 6 }}>
+                    Matches your phone contacts against Meridian accounts — hashed on your device, never sent as plain text.
+                  </p>
+                </>
+              )}
               {contactCheckStatus && <p className="pref-hint">{contactCheckStatus}</p>}
               {contactMatches.length > 0 && (
                 <div style={{ marginTop: 10, marginBottom: 10 }}>
@@ -1538,29 +1550,6 @@ export default function App() {
             {nearbyStatus && <p className="pref-hint">{nearbyStatus}</p>}
 
             <div style={{ marginTop: 32 }}>
-              <div className="pref-label">Find contacts already on Meridian</div>
-              <p className="pref-hint" style={{ marginTop: -4, marginBottom: 10 }}>
-                Checks your phone contacts against Meridian accounts — your contacts' info is hashed on your device and never sent anywhere in plain text. Currently works on Android Chrome only; other browsers can add friends by email below instead.
-              </p>
-              <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts}>
-                {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
-              </button>
-              {contactCheckStatus && <p className="pref-hint">{contactCheckStatus}</p>}
-              {contactMatches.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  {contactMatches.map((m) => (
-                    <div key={m.uid} className="friend-row">
-                      <div className="friend-email">{m.displayName || m.email}</div>
-                      <button className="book-btn" style={{ margin: 0 }} onClick={() => handleAddContactMatch(m)}>
-                        Add friend
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginTop: 32 }}>
               <div className="pref-label">Add a friend by email</div>
               <form onSubmit={handleAddFriend} style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                 <input
@@ -1576,6 +1565,31 @@ export default function App() {
               {addFriendStatus && <p className="pref-hint">{addFriendStatus}</p>}
               <p className="pref-hint">They need a Meridian account already — invite them to sign up first if not found.</p>
             </div>
+
+            {contactPickerSupported && (
+              <div style={{ marginTop: 32 }}>
+                <div className="pref-label">Find contacts already on Meridian</div>
+                <p className="pref-hint" style={{ marginTop: -4, marginBottom: 10 }}>
+                  Checks your phone contacts against Meridian accounts — your contacts' info is hashed on your device and never sent anywhere in plain text.
+                </p>
+                <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts}>
+                  {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
+                </button>
+                {contactCheckStatus && <p className="pref-hint">{contactCheckStatus}</p>}
+                {contactMatches.length > 0 && (
+                  <div style={{ marginTop: 14 }}>
+                    {contactMatches.map((m) => (
+                      <div key={m.uid} className="friend-row">
+                        <div className="friend-email">{m.displayName || m.email}</div>
+                        <button className="book-btn" style={{ margin: 0 }} onClick={() => handleAddContactMatch(m)}>
+                          Add friend
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {friends.length > 0 && (
               <div style={{ marginTop: 32 }}>
