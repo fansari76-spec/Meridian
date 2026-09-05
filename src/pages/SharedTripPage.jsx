@@ -48,7 +48,7 @@ export default function SharedTripPage({ tripId }) {
   if (status === "notfound" || status === "error") {
     return (
       <div className="wrap" style={{ padding: "100px 28px", textAlign: "center" }}>
-        <h2 style={{ fontFamily: "'Fraunces',serif", fontSize: "1.6rem" }}>
+        <h2 style={{ fontFamily: "'Sora',sans-serif", fontSize: "1.6rem" }}>
           {status === "notfound" ? "Trip not found" : "Something went wrong"}
         </h2>
         <p style={{ color: "#5A5F68", marginTop: 8 }}>

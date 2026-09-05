@@ -88,7 +88,7 @@ export default function GroupTripPage({ tripId }) {
   if (status === "notfound") {
     return (
       <div className="wrap" style={{ padding: "100px 28px", textAlign: "center" }}>
-        <h2 style={{ fontFamily: "'Fraunces',serif", fontSize: "1.6rem" }}>Group trip not found</h2>
+        <h2 style={{ fontFamily: "'Sora',sans-serif", fontSize: "1.6rem" }}>Group trip not found</h2>
         <p style={{ color: "#5A5F68", marginTop: 8 }}>This link may be broken, or the trip was removed.</p>
         <a className="book-btn" style={{ marginTop: 20, display: "inline-block" }} href="/">Plan your own trip →</a>
       </div>
