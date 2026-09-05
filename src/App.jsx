@@ -222,6 +222,7 @@ export default function App() {
   const [groupNameInput, setGroupNameInput] = useState("");
   const [familyRows, setFamilyRows] = useState([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
   const [travelGroupStatus, setTravelGroupStatus] = useState(null);
+  const [selectedTravelGroupForSearch, setSelectedTravelGroupForSearch] = useState(null);
   const [contactMatches, setContactMatches] = useState([]);
   const [checkingContacts, setCheckingContacts] = useState(false);
   const [contactCheckStatus, setContactCheckStatus] = useState(null);
@@ -386,13 +387,37 @@ export default function App() {
     }
   }, [fetchedStays, selectedStay]);
 
+  // Builds Duffel-shaped passenger entries — either from the selected
+  // saved travel group (real per-family adult counts + children's
+  // exact ages, so infants under 2 and children get correct fares) or,
+  // if no group is selected, a flat all-adult list from the manual
+  // traveler count.
+  function buildPassengersForSearch() {
+    if (selectedTravelGroupForSearch) {
+      const passengers = [];
+      selectedTravelGroupForSearch.families.forEach((f) => {
+        for (let i = 0; i < (Number(f.adults) || 0); i++) passengers.push({ type: "adult" });
+        (f.childrenAges || []).forEach((age) => passengers.push({ age }));
+      });
+      return passengers;
+    }
+    return Array.from({ length: Number(form.travelers) || 1 }, () => ({ type: "adult" }));
+  }
+
   async function handleSearch(e) {
     e.preventDefault();
-    const data = await search(form);
+    const passengers = buildPassengersForSearch();
+    const data = await search({ ...form, passengers, travelers: passengers.length });
     if (data?.primary?.offers?.length) {
       setSelectedFlight(data.primary.offers[0]);
       setSelectedFlexOffset(null);
     }
+  }
+
+  function handleSelectTravelGroupForSearch(groupId) {
+    const group = myTravelGroups.find((g) => g.id === groupId);
+    setSelectedTravelGroupForSearch(group || null);
+    if (group) setForm((f) => ({ ...f, travelers: Math.min(group.total, 8) })); // keep the display number sane; the real passenger list (used for actual search/pricing) isn't capped
   }
 
   function toggleInterest(id) {
@@ -401,22 +426,24 @@ export default function App() {
 
   const nights = useMemo(() => nightsFromDates(form.departDate, form.returnDate), [form.departDate, form.returnDate]);
 
-  const flightPricePerPerson = selectedFlight
-    ? selectedFlight.totalAmount / (form.travelers || 1)
-    : 209; // demo fallback so budget/itinerary work before any search runs
+  // selectedFlight.totalAmount is already the real total for the whole
+  // passenger list sent to the search (adults + any children/infants
+  // at their real fares) — not a per-person rate — so it's used
+  // directly rather than multiplied by a headcount.
+  const flightsTotal = selectedFlight ? selectedFlight.totalAmount : 209 * (Number(form.travelers) || 1); // demo fallback so budget/itinerary work before any search runs
 
   const itineraryPlan = chatPlan || aiPlan || [];
 
   const budget = useMemo(
     () =>
       calculateBudget({
-        flightPricePerPerson,
+        flightsTotal,
         nightlyRate: selectedStay?.price ?? 140,
         nights,
         travelers: Number(form.travelers) || 1,
         itineraryPlan,
       }),
-    [flightPricePerPerson, selectedStay, nights, form.travelers, itineraryPlan]
+    [flightsTotal, selectedStay, nights, form.travelers, itineraryPlan]
   );
 
   const sortedStays = useMemo(() => {
@@ -704,12 +731,9 @@ export default function App() {
   }
 
   function handleUseTravelGroupForSearch(group) {
+    setSelectedTravelGroupForSearch(group);
     setForm((f) => ({ ...f, travelers: Math.min(group.total, 8) }));
-    setTravelGroupStatus(
-      group.total > 8
-        ? `Set travelers to 8 (max) — "${group.name}" has ${group.total} people total; you may need to search in parties for now.`
-        : `Set travelers to ${group.total} for "${group.name}."`
-    );
+    setTravelGroupStatus(`"${group.name}" is active for search — ${group.total} real travelers (with correct child/infant fares), searched as a group.`);
     setActiveTab("search");
   }
 
@@ -891,6 +915,20 @@ export default function App() {
 
       <div className="search-dock wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
         <form className="search-card" onSubmit={handleSearch}>
+          {user && myTravelGroups.length > 0 && (
+            <div className="group-search-row">
+              <label>Search by saved group</label>
+              <select
+                value={selectedTravelGroupForSearch?.id || ""}
+                onChange={(e) => handleSelectTravelGroupForSearch(e.target.value)}
+              >
+                <option value="">No group — search manually</option>
+                {myTravelGroups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name} ({g.total} people)</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="search-row">
             <div className="field">
               <label>From → To (airport codes)</label>
@@ -909,11 +947,18 @@ export default function App() {
             </div>
             <div className="field">
               <label>Travelers</label>
-              <select value={form.travelers} onChange={(e) => setForm({ ...form, travelers: Number(e.target.value) })}>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                  <option key={n} value={n}>{n} traveler{n > 1 ? "s" : ""}</option>
-                ))}
-              </select>
+              {selectedTravelGroupForSearch ? (
+                <div className="group-active-readout">
+                  <strong>{selectedTravelGroupForSearch.total} people</strong> ({selectedTravelGroupForSearch.name})
+                  <button type="button" className="group-clear-btn" onClick={() => handleSelectTravelGroupForSearch("")}>Clear</button>
+                </div>
+              ) : (
+                <select value={form.travelers} onChange={(e) => setForm({ ...form, travelers: Number(e.target.value) })}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                    <option key={n} value={n}>{n} traveler{n > 1 ? "s" : ""}</option>
+                  ))}
+                </select>
+              )}
             </div>
             <button className="search-btn" type="submit" disabled={loading}>
               {loading ? "Searching…" : "Search trip"}
@@ -924,6 +969,7 @@ export default function App() {
         </form>
         <p className="trust-line">
           Free to plan, no card required — every price links straight to the airline or hotel's own checkout, and we scan dates ±14 days to catch cheaper fares nearby.
+          {selectedTravelGroupForSearch && " Prices reflect real per-person fares for this group — children and infants are priced correctly, not as full adult fares."}
         </p>
       </div>
 
@@ -945,7 +991,7 @@ export default function App() {
                   <div className="top-pick-kind">Flight {results?.usedMockData === false && <span className="live-dot">● Live price</span>}</div>
                   <div className="top-pick-name">{topFlight.airline || "Selected airline"}</div>
                   <div className="top-pick-why">Picked for {topFlightReason()}</div>
-                  <div className="top-pick-price">${Math.round(topFlight.totalAmount)} <span>round trip / traveler</span></div>
+                  <div className="top-pick-price">${Math.round(topFlight.totalAmount)} <span>round trip total, {results?.passengerCount || form.travelers} traveler{(results?.passengerCount || form.travelers) > 1 ? "s" : ""}</span></div>
                 </div>
               )}
               {topStay && (
@@ -989,7 +1035,7 @@ export default function App() {
                 </div>
                 <div className="flight-price">
                   <div className="amt">${Math.round(offer.totalAmount)}</div>
-                  <div className="per">round trip / traveler</div>
+                  <div className="per">round trip total, {results?.passengerCount || form.travelers} traveler{(results?.passengerCount || form.travelers) > 1 ? "s" : ""}</div>
                 </div>
                 <a className="book-btn" href={offer.bookingUrl} target="_blank" rel="noreferrer" onClick={() => setSelectedFlight(offer)}>
                   View & book →

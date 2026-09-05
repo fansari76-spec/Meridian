@@ -39,8 +39,8 @@ function summarizeItinerary(itineraryPlan) {
   };
 }
 
-export function calculateBudget({ flightPricePerPerson, nightlyRate, nights, travelers, itineraryPlan = null }) {
-  const flights = flightPricePerPerson * travelers;
+export function calculateBudget({ flightsTotal, nightlyRate, nights, travelers, itineraryPlan = null }) {
+  const flights = flightsTotal;
   const stay = nightlyRate * nights;
 
   const fromItinerary = summarizeItinerary(itineraryPlan);

@@ -14,14 +14,14 @@ export function useFlightSearch() {
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
 
-  const search = useCallback(async ({ origin, destination, departDate, returnDate, travelers, flexDays = 14 }) => {
+  const search = useCallback(async ({ origin, destination, departDate, returnDate, travelers, passengers, flexDays = 14 }) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/flights/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ origin, destination, departDate, returnDate, travelers, flexDays }),
+        body: JSON.stringify({ origin, destination, departDate, returnDate, travelers, passengers, flexDays }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

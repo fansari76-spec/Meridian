@@ -154,6 +154,11 @@ section.panel:last-of-type{border-bottom:none;}
 .vote-btn--active-not_going{background:#F5E4E0; border-color:#C97B5D;}
 .vote-btn--active-maybe{background:var(--paper-dim); border-color:var(--gold);}
 .family-row-card{background:var(--paper-dim); border-radius:12px; padding:14px 16px; margin-bottom:12px;}
+.group-search-row{margin-bottom:16px; padding-bottom:16px; border-bottom:1px dashed var(--line);}
+.group-search-row label{display:block; font-size:0.76rem; font-weight:600; color:#5A5F68; margin-bottom:6px;}
+.group-search-row select{width:100%; max-width:360px; border:1px solid var(--line); border-radius:10px; padding:11px 12px; font-size:0.9rem; background:var(--paper); font-family:'Inter',sans-serif;}
+.group-active-readout{display:flex; align-items:center; gap:10px; border:1px solid var(--teal); background:var(--teal-light); border-radius:10px; padding:11px 12px; font-size:0.85rem; white-space:nowrap;}
+.group-clear-btn{border:none; background:transparent; color:var(--indigo); font-weight:700; font-size:0.78rem; text-decoration:underline; padding:0;}
 .rsvp-names{display:flex; flex-direction:column; gap:2px; margin-top:8px; font-size:0.78rem; color:#5A5F68;}
 .rsvp-name-group{display:block;}
 
