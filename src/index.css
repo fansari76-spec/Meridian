@@ -1,6 +1,6 @@
 :root{
-  --ink:#1F2937; --paper:#FFFCF7; --paper-dim:#F3F1EA;
-  --indigo:#2E86DE; --indigo-deep:#1B5FA8; --gold:#FF8A3D; --gold-light:#FFE3C2;
+  --ink:#1F2937; --paper:#FFFFFF; --paper-dim:#F4F5F7;
+  --indigo:#24578A; --indigo-deep:#163A5C; --gold:#FF8A3D; --gold-light:#FFE3C2;
   --teal:#12B3A0; --teal-light:#D7F7F1; --line: rgba(31,41,55,0.12); --white:#FFFFFF;
   font-size:16px;
 }
@@ -16,7 +16,7 @@ h1,h2,h3,.serif{font-family:'Sora',sans-serif;}
 button{font-family:inherit; cursor:pointer;}
 .wrap{max-width:1120px; margin:0 auto; padding:0 28px;}
 
-header.top{position:sticky; top:0; z-index:50; background:rgba(255,252,247,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
+header.top{position:sticky; top:0; z-index:50; background:rgba(255,255,255,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
 .topbar{display:flex; align-items:center; justify-content:space-between; padding:18px 28px; max-width:1120px; margin:0 auto;}
 .brand{display:flex; align-items:center; gap:10px; font-family:'Sora',sans-serif; font-weight:600; font-size:1.3rem;}
 .brand-mark{width:30px; height:30px; border-radius:50%; background:conic-gradient(from 210deg, var(--indigo), var(--teal), var(--gold), var(--indigo)); flex-shrink:0;}
@@ -41,7 +41,7 @@ nav.tabs button.active{opacity:1; background:var(--indigo); color:var(--paper);}
 }
 .hero-photo-inner{padding:100px 28px 140px;}
 .hero-photo h1{font-size:3rem; font-weight:600; line-height:1.08; letter-spacing:-0.01em; max-width:15ch; color:var(--paper);}
-.hero-photo p.lede{margin-top:20px; max-width:48ch; font-size:1.08rem; color:rgba(255,252,247,0.88);}
+.hero-photo p.lede{margin-top:20px; max-width:48ch; font-size:1.08rem; color:rgba(255,255,255,0.88);}
 
 .search-dock{margin-top:-92px; position:relative; z-index:5;}
 .search-dock .search-card{margin-top:0;}

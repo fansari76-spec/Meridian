@@ -836,10 +836,9 @@ export default function App() {
             <div className="field">
               <label>Travelers</label>
               <select value={form.travelers} onChange={(e) => setForm({ ...form, travelers: Number(e.target.value) })}>
-                <option value={1}>1 adult</option>
-                <option value={2}>2 adults</option>
-                <option value={3}>3 travelers</option>
-                <option value={4}>Family (4)</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <option key={n} value={n}>{n} traveler{n > 1 ? "s" : ""}</option>
+                ))}
               </select>
             </div>
             <button className="search-btn" type="submit" disabled={loading}>
