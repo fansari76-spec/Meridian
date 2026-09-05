@@ -808,21 +808,14 @@ export default function App() {
         )}
       </header>
 
-      <section className="hero wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
-        <div className="hero-grid">
-          <div>
-            <div className="eyebrow-plain">One trip, every piece, in one place</div>
-            <h1>Plan a trip the way a well-traveled friend would.</h1>
-            <p className="lede">Flights, stays, food, budget, and a day-by-day plan — built around how you actually like to travel, including pilgrimage and faith-based journeys.</p>
-          </div>
-          <div className="hero-side">
-            <div className="stat">{nights}</div>
-            <div className="stat-label">nights in this trip, budget updates as you change dates</div>
-            <div className="stat">±14 days</div>
-            <div className="stat-label">flexible date scan to catch cheaper fares nearby</div>
-          </div>
+      <section className="hero-photo" style={{ display: activeTab === "search" ? "block" : "none" }}>
+        <div className="hero-photo-inner wrap">
+          <h1>Plan a trip the way a well-traveled friend would.</h1>
+          <p className="lede">Flights, stays, food, budget, and a day-by-day plan — built around how you actually like to travel, including pilgrimage and faith-based journeys.</p>
         </div>
+      </section>
 
+      <div className="search-dock wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
         <form className="search-card" onSubmit={handleSearch}>
           <div className="search-row">
             <div className="field">
@@ -856,7 +849,10 @@ export default function App() {
           {error && <div className="search-error">{error}</div>}
           {results?.usedMockData && <div className="demo-note">Demo data — connect a Duffel API key in server/.env for live fares. See README.md.</div>}
         </form>
-      </section>
+        <p className="trust-line">
+          Free to plan, no card required — every price links straight to the airline or hotel's own checkout, and we scan dates ±14 days to catch cheaper fares nearby.
+        </p>
+      </div>
 
       {/* ===================== FLIGHTS + STAYS ===================== */}
       <section className="panel wrap" id="panel-search" style={{ display: activeTab === "search" ? "block" : "none" }}>
