@@ -17,6 +17,7 @@ import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
 import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
 import { createGroupTrip, listMyGroupTrips } from "./lib/groupTrips.js";
+import { createTravelGroup, listTravelGroups, deleteTravelGroup } from "./lib/travelGroups.js";
 import { sha256Hex } from "./lib/hash.js";
 
 const TABS = [
@@ -217,6 +218,10 @@ export default function App() {
   const [groupTripStatus, setGroupTripStatus] = useState(null);
   const [groupTripUrl, setGroupTripUrl] = useState(null);
   const [myGroupTrips, setMyGroupTrips] = useState([]);
+  const [myTravelGroups, setMyTravelGroups] = useState([]);
+  const [groupNameInput, setGroupNameInput] = useState("");
+  const [familyRows, setFamilyRows] = useState([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
+  const [travelGroupStatus, setTravelGroupStatus] = useState(null);
   const [contactMatches, setContactMatches] = useState([]);
   const [checkingContacts, setCheckingContacts] = useState(false);
   const [contactCheckStatus, setContactCheckStatus] = useState(null);
@@ -261,12 +266,14 @@ export default function App() {
       setInbox([]);
       setSentPings([]);
       setMyGroupTrips([]);
+      setMyTravelGroups([]);
       setPrefsLoaded(false);
       return;
     }
     upsertUserProfile(user);
     listFriends(user.uid).then(setFriends);
     listMyGroupTrips(user.uid).then(setMyGroupTrips);
+    listTravelGroups(user.uid).then(setMyTravelGroups);
     loadPreferences(user.uid).then((saved) => {
       if (saved) setPrefs((p) => ({ ...p, ...saved }));
       setPrefsLoaded(true);
@@ -637,6 +644,73 @@ export default function App() {
 
   function toggleInviteFriend(uid) {
     setInviteSelection((prev) => (prev.includes(uid) ? prev.filter((u) => u !== uid) : [...prev, uid]));
+  }
+
+  // --- Travel group (family/roster) builder ---
+
+  function addFamilyRow() {
+    setFamilyRows((prev) => [...prev, { label: `Family ${prev.length + 1}`, adults: 2, childrenAgesText: "" }]);
+  }
+
+  function updateFamilyRow(index, field, value) {
+    setFamilyRows((prev) => prev.map((f, i) => (i === index ? { ...f, [field]: value } : f)));
+  }
+
+  function removeFamilyRow(index) {
+    setFamilyRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function parseAges(text) {
+    return (text || "")
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n) && n >= 0 && n <= 17);
+  }
+
+  function familyRowTotal(row) {
+    return (Number(row.adults) || 0) + parseAges(row.childrenAgesText).length;
+  }
+
+  async function handleSaveTravelGroup() {
+    if (!user) {
+      setTravelGroupStatus("Sign in first to save a group.");
+      setActiveTab("account");
+      return;
+    }
+    if (!groupNameInput.trim()) {
+      setTravelGroupStatus("Give the group a name first, like \"Thailand Trip.\"");
+      return;
+    }
+    setTravelGroupStatus("Saving…");
+    try {
+      const families = familyRows.map((f) => ({
+        label: f.label || "Family",
+        adults: Number(f.adults) || 0,
+        childrenAges: parseAges(f.childrenAgesText),
+      }));
+      const saved = await createTravelGroup(user.uid, { name: groupNameInput.trim(), families });
+      setMyTravelGroups((prev) => [saved, ...prev]);
+      setGroupNameInput("");
+      setFamilyRows([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
+      setTravelGroupStatus(`"${saved.name}" saved — ${saved.total} people total.`);
+    } catch (err) {
+      setTravelGroupStatus(err.message || "Couldn't save that group.");
+    }
+  }
+
+  async function handleDeleteTravelGroup(groupId) {
+    await deleteTravelGroup(user.uid, groupId);
+    setMyTravelGroups((prev) => prev.filter((g) => g.id !== groupId));
+  }
+
+  function handleUseTravelGroupForSearch(group) {
+    setForm((f) => ({ ...f, travelers: Math.min(group.total, 8) }));
+    setTravelGroupStatus(
+      group.total > 8
+        ? `Set travelers to 8 (max) — "${group.name}" has ${group.total} people total; you may need to search in parties for now.`
+        : `Set travelers to ${group.total} for "${group.name}."`
+    );
+    setActiveTab("search");
   }
 
   async function handleStartGroupTrip() {
@@ -1357,6 +1431,108 @@ export default function App() {
           <div className="demo-note">Sign in (Account tab) to start or view group trips.</div>
         ) : (
           <>
+            <div className="packing-box" style={{ marginTop: 0, marginBottom: 40 }}>
+              <div className="panel-head" style={{ marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ fontSize: "1.25rem" }}>My Groups</h2>
+                  <p style={{ fontSize: "0.85rem" }}>
+                    Define a named roster of people traveling together — multiple families, each with their own adult count and children's ages — without anyone needing a Meridian account. Save it once, then use it to set the traveler count for any search.
+                  </p>
+                </div>
+              </div>
+
+              {myTravelGroups.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  {myTravelGroups.map((g) => (
+                    <div key={g.id} className="friend-row">
+                      <div>
+                        <div className="friend-email">{g.name}</div>
+                        <div className="friend-offline">
+                          {g.families.length} {g.families.length === 1 ? "family" : "families"} · {g.adults} adults, {g.children} children · {g.total} total
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="book-btn" style={{ margin: 0 }} onClick={() => handleUseTravelGroupForSearch(g)}>
+                          Use for search
+                        </button>
+                        <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleDeleteTravelGroup(g.id)}>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="pref-label">New group</div>
+              <input
+                type="text"
+                placeholder='Group name — e.g. "Thailand Trip"'
+                value={groupNameInput}
+                onChange={(e) => setGroupNameInput(e.target.value)}
+                style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem", marginTop: 10, marginBottom: 20 }}
+              />
+
+              {familyRows.map((row, i) => (
+                <div key={i} className="family-row-card">
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      type="text"
+                      value={row.label}
+                      onChange={(e) => updateFamilyRow(i, "label", e.target.value)}
+                      placeholder="Family name (optional)"
+                      style={{ flex: "1 1 160px", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: "0.85rem" }}
+                    />
+                    <label style={{ fontSize: "0.82rem", color: "#5A5F68", display: "flex", alignItems: "center", gap: 6 }}>
+                      Adults
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={row.adults}
+                        onChange={(e) => updateFamilyRow(i, "adults", e.target.value)}
+                        style={{ width: 56, border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: "0.85rem" }}
+                      />
+                    </label>
+                    <label style={{ fontSize: "0.82rem", color: "#5A5F68", display: "flex", alignItems: "center", gap: 6, flex: "1 1 200px" }}>
+                      Children's ages
+                      <input
+                        type="text"
+                        placeholder="e.g. 4, 7, 10"
+                        value={row.childrenAgesText}
+                        onChange={(e) => updateFamilyRow(i, "childrenAgesText", e.target.value)}
+                        style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: "0.85rem" }}
+                      />
+                    </label>
+                    {familyRows.length > 1 && (
+                      <button className="book-btn secondary" style={{ margin: 0, padding: "8px 12px" }} onClick={() => removeFamilyRow(i)}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <p className="pref-hint" style={{ marginTop: 6 }}>{familyRowTotal(row)} people in this family</p>
+                </div>
+              ))}
+
+              <button className="book-btn secondary" onClick={addFamilyRow} style={{ marginTop: 4 }}>
+                + Add another family
+              </button>
+              <div style={{ marginTop: 16 }}>
+                <button className="book-btn" onClick={handleSaveTravelGroup}>Save group</button>
+              </div>
+              {travelGroupStatus && <p className="pref-hint" style={{ marginTop: 10 }}>{travelGroupStatus}</p>}
+              <p className="pref-hint" style={{ marginTop: 10 }}>
+                Flight search can use this group's total headcount today. Hotel searches don't yet support per-family room/bed configuration — that needs a real hotel booking API, which is still pending (see the note on the Flights & Stays tab).
+              </p>
+            </div>
+
+            <div className="panel-head" style={{ marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: "1.4rem" }}>Trips</h2>
+                <p style={{ fontSize: "0.9rem" }}>Trips you're planning with friends — RSVPs, shared photos, and live location.</p>
+              </div>
+            </div>
+
             {myGroupTrips.length > 0 && (
               <div style={{ marginBottom: 40 }}>
                 <div className="pref-label">Your group trips</div>
