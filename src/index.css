@@ -255,6 +255,8 @@ section.panel:last-of-type{border-bottom:none;}
 .divider::before, .divider::after{content:''; flex:1; height:1px; background:var(--line);}
 .user-card{background:var(--white); border:1px solid var(--line); border-radius:18px; padding:28px; max-width:400px;}
 .trip-row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); font-size:0.88rem;}
+.saved-trip-block{padding:10px 0; border-bottom:1px solid var(--line);}
+.saved-trip-block .trip-row{border-bottom:none; padding:0;}
 
 .account-card{display:flex; align-items:center; gap:16px; background:var(--white); border:1px solid var(--line); border-radius:16px; padding:20px 24px; margin-bottom:28px; max-width:520px;}
 .account-avatar{width:52px; height:52px; border-radius:50%; background:var(--indigo); color:var(--paper); display:flex; align-items:center; justify-content:center; font-family:'Sora',sans-serif; font-size:1.3rem; font-weight:600; flex-shrink:0;}

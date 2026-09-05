@@ -197,6 +197,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [priceCheckByTripId, setPriceCheckByTripId] = useState({}); // tripId -> { loading, message }
   const [shareUrl, setShareUrl] = useState(null);
   const [shareStatus, setShareStatus] = useState(null);
 
@@ -231,6 +232,7 @@ export default function App() {
   const [memberSearching, setMemberSearching] = useState(false);
 
   const { search, loading, error, results } = useFlightSearch();
+  const { search: checkPrice } = useFlightSearch(); // separate instance so price-checks don't clobber the main search results
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI, warning: itineraryWarning } = useItinerary();
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
@@ -501,9 +503,52 @@ export default function App() {
       returnDate: form.returnDate,
       travelers: form.travelers,
       total: budget.total,
+      flightTotal: selectedFlight?.totalAmount ?? null,
+      flightAirline: selectedFlight?.airline ?? null,
     });
     setTrips((prev) => [trip, ...prev]);
     setSaveStatus("Trip saved.");
+  }
+
+  // Re-runs a search for a saved trip's exact route/dates and compares
+  // the current cheapest fare against the price it was saved at. This
+  // is the on-demand version of fare monitoring — it checks when you
+  // ask, rather than watching in the background while you're away.
+  // True background monitoring (checking automatically overnight and
+  // emailing you if something drops) needs a real scheduled job plus
+  // an email service — see README for how that would be added later.
+  async function handleCheckTripPrice(trip) {
+    if (trip.flightTotal == null) {
+      setPriceCheckByTripId((prev) => ({ ...prev, [trip.id]: { loading: false, message: "This trip wasn't saved with a specific flight, so there's nothing to compare against." } }));
+      return;
+    }
+    setPriceCheckByTripId((prev) => ({ ...prev, [trip.id]: { loading: true, message: null } }));
+    const data = await checkPrice({
+      origin: trip.origin,
+      destination: trip.destination,
+      departDate: trip.departDate,
+      returnDate: trip.returnDate,
+      travelers: trip.travelers,
+      flexDays: 0,
+    });
+    const cheapest = data?.primary?.offers?.[0];
+    if (!cheapest) {
+      setPriceCheckByTripId((prev) => ({ ...prev, [trip.id]: { loading: false, message: "Couldn't check the current price — try again." } }));
+      return;
+    }
+    const diff = Math.round(trip.flightTotal - cheapest.totalAmount);
+    let message;
+    if (diff > 1) {
+      message = `Price dropped $${diff} — now $${Math.round(cheapest.totalAmount)} on ${cheapest.airline} (was $${Math.round(trip.flightTotal)}).`;
+    } else if (diff < -1) {
+      message = `Price went up $${Math.abs(diff)} since you saved this — now $${Math.round(cheapest.totalAmount)} (was $${Math.round(trip.flightTotal)}).`;
+    } else {
+      message = `No real change — still about $${Math.round(cheapest.totalAmount)}, same as when you saved it.`;
+    }
+    if (data.usedMockData) {
+      message += " (Demo prices are fixed per route/date, so this won't show real day-to-day movement until Duffel is live.)";
+    }
+    setPriceCheckByTripId((prev) => ({ ...prev, [trip.id]: { loading: false, message, bookingUrl: cheapest.bookingUrl } }));
   }
 
   async function handleShareTrip() {
@@ -1996,12 +2041,32 @@ export default function App() {
                   {trips.length === 0 ? (
                     <p className="pref-hint">No trips saved yet — build one on the Budget tab.</p>
                   ) : (
-                    trips.map((t) => (
-                      <div className="trip-row" key={t.id}>
-                        <span>{t.origin} → {t.destination}</span>
-                        <span>${t.total?.toLocaleString?.() ?? t.total}</span>
-                      </div>
-                    ))
+                    trips.map((t) => {
+                      const check = priceCheckByTripId[t.id];
+                      return (
+                        <div key={t.id} className="saved-trip-block">
+                          <div className="trip-row">
+                            <span>{t.origin} → {t.destination}</span>
+                            <span>${t.total?.toLocaleString?.() ?? t.total}</span>
+                          </div>
+                          {t.flightTotal != null && (
+                            <button className="book-btn secondary" style={{ marginTop: 6 }} onClick={() => handleCheckTripPrice(t)} disabled={check?.loading}>
+                              {check?.loading ? "Checking…" : "Check current price"}
+                            </button>
+                          )}
+                          {check?.message && (
+                            <p className="pref-hint" style={{ marginTop: 6 }}>
+                              {check.message}{" "}
+                              {check.bookingUrl && (
+                                <a href={check.bookingUrl} target="_blank" rel="noreferrer" style={{ color: "var(--indigo)", fontWeight: 700 }}>
+                                  View & book →
+                                </a>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </details>
