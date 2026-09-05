@@ -156,6 +156,57 @@ function formatShortDate(iso) {
   return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
+// Cycles through a set of background photos with a soft crossfade —
+// used for both the Flights & Stays hero and the Pilgrimage hero.
+// Only one image in this whole app has been visually confirmed to
+// render correctly from this build environment (no internet access
+// here to verify the rest) — if any single photo in these arrays
+// doesn't load once deployed, swapping its URL is a one-line fix.
+function RotatingHero({ images, intervalMs = 6000, style, children }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setIndex((i) => (i + 1) % images.length), intervalMs);
+    return () => clearInterval(timer);
+  }, [images.length, intervalMs]);
+
+  return (
+    <section className="hero-photo" style={style}>
+      {images.map((url, i) => (
+        <div key={url} className={`hero-photo-layer ${i === index ? "active" : ""}`} style={{ backgroundImage: `url(${url})` }} />
+      ))}
+      <div className="hero-photo-overlay" />
+      <div className="hero-photo-inner wrap">{children}</div>
+    </section>
+  );
+}
+
+// One confirmed-working photo (the original hero image) plus a
+// well-known scenic set spanning mountains, beach, historic
+// architecture, a museum, a romantic/honeymoon shot, a family-friendly
+// city, and outdoor adventure — matching "plan a trip to anywhere."
+const FLIGHTS_HERO_IMAGES = [
+  "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1471922694854-ff1b63b20054?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1548574505-5e239809ee19?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=1600&q=70",
+];
+
+// One serene, representative image per tradition shown on the
+// Pilgrimage page — chosen for a peaceful, respectful feel rather than
+// claiming pixel-perfect authenticity of one specific named site.
+const PILGRIMAGE_HERO_IMAGES = [
+  "https://images.unsplash.com/photo-1552733407-5d5c46c3bb3b?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1531572753322-ad063cecc140?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1560930950-5cc20e80e392?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1524230507669-5ff97982bb5e?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1580746738099-1b6c17f6f8f2?auto=format&fit=crop&w=1600&q=70",
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("search");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -971,12 +1022,10 @@ export default function App() {
         )}
       </header>
 
-      <section className="hero-photo" style={{ display: activeTab === "search" ? "block" : "none" }}>
-        <div className="hero-photo-inner wrap">
-          <h1>Plan a trip the way a well-traveled friend would.</h1>
-          <p className="lede">Flights, stays, food, budget, and a day-by-day plan — built around how you actually like to travel, including pilgrimage and faith-based journeys.</p>
-        </div>
-      </section>
+      <RotatingHero images={FLIGHTS_HERO_IMAGES} style={{ display: activeTab === "search" ? "block" : "none" }}>
+        <h1>Plan a trip the way a well-traveled friend would.</h1>
+        <p className="lede">Flights, stays, food, budget, and a day-by-day plan — built around how you actually like to travel, including pilgrimage and faith-based journeys.</p>
+      </RotatingHero>
 
       <div className="search-dock wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
         <form className="search-card" onSubmit={handleSearch}>
@@ -1763,6 +1812,10 @@ export default function App() {
       </section>
 
       {/* ===================== PILGRIMAGE ===================== */}
+      <RotatingHero images={PILGRIMAGE_HERO_IMAGES} intervalMs={7000} style={{ display: activeTab === "pilgrimage" ? "block" : "none" }}>
+        <h1>Sacred journeys, planned with care.</h1>
+        <p className="lede">Six traditions, each with the right pace, timing, and dietary guidance built in from the start.</p>
+      </RotatingHero>
       <section className="panel wrap" style={{ display: activeTab === "pilgrimage" ? "block" : "none" }}>
         <div className="panel-head">
           <div><h2>Pilgrimage & sacred journeys</h2><p>A dedicated trip category — tap any tradition for timing, logistics, and dietary notes.</p></div>
