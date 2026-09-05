@@ -17,7 +17,7 @@ import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
 import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
 import { createGroupTrip, listMyGroupTrips } from "./lib/groupTrips.js";
-import { createTravelGroup, listTravelGroups, deleteTravelGroup } from "./lib/travelGroups.js";
+import { createTravelGroup, listTravelGroups, deleteTravelGroup, setTravelGroupActive } from "./lib/travelGroups.js";
 import { sha256Hex } from "./lib/hash.js";
 
 const TABS = [
@@ -414,10 +414,19 @@ export default function App() {
     }
   }
 
-  function handleSelectTravelGroupForSearch(groupId) {
-    const group = myTravelGroups.find((g) => g.id === groupId);
-    setSelectedTravelGroupForSearch(group || null);
-    if (group) setForm((f) => ({ ...f, travelers: Math.min(group.total, 8) })); // keep the display number sane; the real passenger list (used for actual search/pricing) isn't capped
+  // The Travelers dropdown mixes plain numbers ("manual:3") with saved
+  // groups ("group:<id>") in one list, so this parses which kind was
+  // picked and sets state accordingly.
+  function handleTravelersSelectChange(value) {
+    if (value.startsWith("group:")) {
+      const groupId = value.slice("group:".length);
+      const group = myTravelGroups.find((g) => g.id === groupId);
+      setSelectedTravelGroupForSearch(group || null);
+      if (group) setForm((f) => ({ ...f, travelers: Math.min(group.total, 8) })); // display only — the real passenger list used for search/pricing isn't capped
+    } else {
+      setSelectedTravelGroupForSearch(null);
+      setForm((f) => ({ ...f, travelers: Number(value.replace("manual:", "")) }));
+    }
   }
 
   function toggleInterest(id) {
@@ -425,6 +434,7 @@ export default function App() {
   }
 
   const nights = useMemo(() => nightsFromDates(form.departDate, form.returnDate), [form.departDate, form.returnDate]);
+  const activeTravelGroups = useMemo(() => myTravelGroups.filter((g) => g.active !== false), [myTravelGroups]);
 
   // selectedFlight.totalAmount is already the real total for the whole
   // passenger list sent to the search (adults + any children/infants
@@ -730,6 +740,16 @@ export default function App() {
     setMyTravelGroups((prev) => prev.filter((g) => g.id !== groupId));
   }
 
+  async function handleToggleTravelGroupActive(group) {
+    const nextActive = group.active === false ? true : false;
+    await setTravelGroupActive(user.uid, group.id, nextActive);
+    setMyTravelGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, active: nextActive } : g)));
+    // If the group being deactivated is currently selected for search, clear it so it doesn't stay silently active.
+    if (!nextActive && selectedTravelGroupForSearch?.id === group.id) {
+      setSelectedTravelGroupForSearch(null);
+    }
+  }
+
   function handleUseTravelGroupForSearch(group) {
     setSelectedTravelGroupForSearch(group);
     setForm((f) => ({ ...f, travelers: Math.min(group.total, 8) }));
@@ -915,21 +935,7 @@ export default function App() {
 
       <div className="search-dock wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
         <form className="search-card" onSubmit={handleSearch}>
-          {user && myTravelGroups.length > 0 && (
-            <div className="group-search-row">
-              <label>Search by saved group</label>
-              <select
-                value={selectedTravelGroupForSearch?.id || ""}
-                onChange={(e) => handleSelectTravelGroupForSearch(e.target.value)}
-              >
-                <option value="">No group — search manually</option>
-                {myTravelGroups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.name} ({g.total} people)</option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="search-row">
+          <div className="search-row search-row--centered">
             <div className="field">
               <label>From → To (airport codes)</label>
               <div style={{ display: "flex", gap: 8 }}>
@@ -947,18 +953,22 @@ export default function App() {
             </div>
             <div className="field">
               <label>Travelers</label>
-              {selectedTravelGroupForSearch ? (
-                <div className="group-active-readout">
-                  <strong>{selectedTravelGroupForSearch.total} people</strong> ({selectedTravelGroupForSearch.name})
-                  <button type="button" className="group-clear-btn" onClick={() => handleSelectTravelGroupForSearch("")}>Clear</button>
-                </div>
-              ) : (
-                <select value={form.travelers} onChange={(e) => setForm({ ...form, travelers: Number(e.target.value) })}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                    <option key={n} value={n}>{n} traveler{n > 1 ? "s" : ""}</option>
-                  ))}
-                </select>
-              )}
+              <select
+                value={selectedTravelGroupForSearch ? `group:${selectedTravelGroupForSearch.id}` : `manual:${form.travelers}`}
+                onChange={(e) => handleTravelersSelectChange(e.target.value)}
+                style={{ minWidth: 170 }}
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <option key={n} value={`manual:${n}`}>{n} traveler{n > 1 ? "s" : ""}</option>
+                ))}
+                {user && activeTravelGroups.length > 0 && (
+                  <optgroup label="Saved groups">
+                    {activeTravelGroups.map((g) => (
+                      <option key={g.id} value={`group:${g.id}`}>{g.name} ({g.total} people)</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
             </div>
             <button className="search-btn" type="submit" disabled={loading}>
               {loading ? "Searching…" : "Search trip"}
@@ -1492,12 +1502,18 @@ export default function App() {
                   {myTravelGroups.map((g) => (
                     <div key={g.id} className="friend-row">
                       <div>
-                        <div className="friend-email">{g.name}</div>
+                        <div className="friend-email">
+                          {g.name}
+                          {g.active === false && <span className="tag" style={{ marginLeft: 8 }}>Inactive</span>}
+                        </div>
                         <div className="friend-offline">
                           {g.families.length} {g.families.length === 1 ? "family" : "families"} · {g.adults} adults, {g.children} children · {g.total} total
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
+                        <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleToggleTravelGroupActive(g)}>
+                          {g.active === false ? "Set active" : "Set inactive"}
+                        </button>
                         <button className="book-btn" style={{ margin: 0 }} onClick={() => handleUseTravelGroupForSearch(g)}>
                           Use for search
                         </button>

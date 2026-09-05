@@ -9,7 +9,7 @@
 // booking API is connected, hotel rooms) for the whole party at once.
 
 import { db, isFirebaseConfigured } from "./firebase";
-import { doc, addDoc, collection, getDocs, deleteDoc, query, orderBy } from "firebase/firestore";
+import { doc, addDoc, collection, getDocs, deleteDoc, updateDoc, query, orderBy } from "firebase/firestore";
 import { serverTimestamp } from "firebase/firestore";
 
 function summarize(families) {
@@ -28,10 +28,16 @@ export async function createTravelGroup(userId, { name, families }) {
   const docRef = await addDoc(collection(db, "users", userId, "travelGroups"), {
     name,
     families,
+    active: true, // inactive groups are kept but hidden from the search dropdown
     ...totals,
     createdAt: serverTimestamp(),
   });
-  return { id: docRef.id, name, families, ...totals };
+  return { id: docRef.id, name, families, active: true, ...totals };
+}
+
+export async function setTravelGroupActive(userId, groupId, active) {
+  if (!isFirebaseConfigured) return;
+  await updateDoc(doc(db, "users", userId, "travelGroups", groupId), { active });
 }
 
 export async function listTravelGroups(userId) {
