@@ -14,6 +14,7 @@
 // the actual budget instead of using flat guesses.
 
 import express from "express";
+import { extractJsonArray } from "../lib/extractJson.js";
 
 const router = express.Router();
 
@@ -87,9 +88,7 @@ async function generateWithClaude({ destination, days, interests, cuisine, faith
 
   const json = await response.json();
   const text = json.content?.map((block) => block.text || "").join("") || "";
-  const cleaned = text.replace(/```json|```/g, "").trim();
-
-  const parsed = JSON.parse(cleaned);
+  const parsed = extractJsonArray(text);
   if (!Array.isArray(parsed)) throw new Error("Unexpected itinerary shape from Claude");
   return parsed;
 }

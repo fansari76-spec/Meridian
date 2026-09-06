@@ -21,6 +21,7 @@
 // are checked rather than guessed from pure model memory.
 
 import express from "express";
+import { extractJsonObject } from "../lib/extractJson.js";
 
 const router = express.Router();
 
@@ -72,8 +73,7 @@ async function parseWithClaude(message) {
 
   const json = await response.json();
   const text = json.content?.map((block) => block.text || "").join("") || "";
-  const cleaned = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(cleaned);
+  return extractJsonObject(text);
 }
 
 function buildPrompt(message, today) {
