@@ -16,6 +16,7 @@ import briefingRouter from "./routes/briefing.js";
 import weatherRouter from "./routes/weather.js";
 import invitesRouter from "./routes/invites.js";
 import priceAlertsRouter from "./routes/priceAlerts.js";
+import importBookingRouter from "./routes/importBooking.js";
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use("/api/briefing", briefingRouter);
 app.use("/api/weather", weatherRouter);
 app.use("/api/invites", invitesRouter);
 app.use("/api/alerts", priceAlertsRouter);
+app.use("/api/import-booking", importBookingRouter);
 
 app.get("/health", (req, res) => {
   res.json({
