@@ -11,6 +11,7 @@ import { useStaySearch } from "./lib/useStaySearch.js";
 import { useItinerary } from "./lib/useItinerary.js";
 import { useImportBooking } from "./lib/useImportBooking.js";
 import { useDestinationRecommender } from "./lib/useDestinationRecommender.js";
+import { useConversationalTrip } from "./lib/useConversationalTrip.js";
 import { useConcierge } from "./lib/useConcierge.js";
 import { usePacking } from "./lib/usePacking.js";
 import { useBriefing } from "./lib/useBriefing.js";
@@ -460,6 +461,9 @@ export default function App() {
   const [recContinents, setRecContinents] = useState([]);
   const [destinationResults, setDestinationResults] = useState(null);
   const [destinationRecStatus, setDestinationRecStatus] = useState("");
+  const [showConversationalEntry, setShowConversationalEntry] = useState(true);
+  const [tripDescription, setTripDescription] = useState("");
+  const [conversationalParseStatus, setConversationalParseStatus] = useState("");
 
   const handleSavePreferences = async () => {
     if (!user) {
@@ -534,6 +538,102 @@ export default function App() {
     }
   };
 
+  function monthNameFromDate(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr + "T00:00:00");
+    if (isNaN(d)) return null;
+    return d.toLocaleString("en-US", { month: "long" });
+  }
+
+  const handleParseConversationalTrip = async () => {
+    if (!tripDescription.trim()) return;
+    setConversationalParseStatus("Reading your trip…");
+    const trip = await parseConversationalTrip(tripDescription);
+    if (!trip) {
+      setConversationalParseStatus(conversationalError || "Couldn't understand that — try rephrasing with a bit more detail.");
+      return;
+    }
+
+    // Merge every extracted preference field, same pattern as the
+    // duplicate-trip and import-booking flows: only fill what was
+    // actually found, never overwrite with a blank.
+    setPrefs((p) => ({
+      ...p,
+      travelParty: trip.travelParty || p.travelParty,
+      pace: trip.pace || p.pace,
+      budgetStyle: trip.budgetStyle || p.budgetStyle,
+      stayType: trip.stayType || p.stayType,
+      flightPriority: trip.flightPriority || p.flightPriority,
+      occasion: trip.occasion || p.occasion,
+      dietaryRestrictions: trip.dietaryRestrictions?.length ? trip.dietaryRestrictions : p.dietaryRestrictions,
+      favoriteCuisines: trip.favoriteCuisines?.length ? trip.favoriteCuisines : p.favoriteCuisines,
+      accessibilityNotes: trip.accessibilityNotes || p.accessibilityNotes,
+      otherNotes: trip.otherNotes || p.otherNotes,
+    }));
+    if (trip.interests?.length) setInterests(trip.interests);
+    if (trip.cuisine) setCuisine(trip.cuisine);
+
+    let departDate = trip.departDate || form.departDate;
+    let returnDate = trip.returnDate || form.returnDate;
+    if (trip.departDate && !trip.returnDate && trip.tripLengthDays) {
+      const d = new Date(trip.departDate + "T00:00:00");
+      d.setDate(d.getDate() + trip.tripLengthDays);
+      returnDate = d.toISOString().slice(0, 10);
+    }
+
+    if (trip.destinationKnown && trip.airportCode) {
+      const updatedForm = {
+        ...form,
+        origin: trip.origin || form.origin,
+        destination: trip.airportCode,
+        departDate,
+        returnDate,
+        travelers: trip.travelers || form.travelers,
+      };
+      setForm(updatedForm);
+      setOriginSource("manual");
+      setConversationalParseStatus(`Got it — planning your trip to ${trip.destinationName}. Searching flights and hotels now…`);
+      setShowConversationalEntry(false);
+
+      const passengers = buildPassengersForSearch();
+      const data = await search({ ...updatedForm, passengers, travelers: passengers.length });
+      if (data?.primary?.offers?.length) {
+        setSelectedFlight(data.primary.offers[0]);
+        setSelectedFlexOffset(null);
+      }
+    } else {
+      // No destination named — hand off to the destination recommender,
+      // pre-filled with whatever preference signals we just extracted,
+      // and run it immediately instead of making them click again.
+      setForm((f) => ({ ...f, departDate, returnDate, travelers: trip.travelers || f.travelers }));
+      setRecBudgetStyle(trip.budgetStyle || "");
+      setRecMonth(monthNameFromDate(trip.departDate) || "");
+      setConversationalParseStatus("No destination yet — let me suggest some real options based on what you told me…");
+      setShowConversationalEntry(false);
+      setShowDestinationRecommender(true);
+
+      setDestinationRecStatus("Thinking of some real options…");
+      setDestinationResults(null);
+      const recData = await recommendDestinations({
+        budgetStyle: trip.budgetStyle || null,
+        month: monthNameFromDate(trip.departDate),
+        region: recRegion,
+        continents: recContinents,
+        interests: trip.interests?.length ? trip.interests : interests,
+        cuisine: trip.cuisine || cuisine,
+        travelParty: trip.travelParty || null,
+        pace: trip.pace || null,
+        dietaryRestrictions: trip.dietaryRestrictions?.length ? trip.dietaryRestrictions : [],
+      });
+      if (!recData) {
+        setDestinationRecStatus(destinationRecError || "Couldn't get destination ideas — try again in a moment.");
+        return;
+      }
+      setDestinationResults(recData.destinations);
+      setDestinationRecStatus(recData.usedAI ? "" : (recData.warning || "Showing general picks — connect ANTHROPIC_API_KEY for personalized suggestions."));
+    }
+  };
+
   const [originSource, setOriginSource] = useState("default"); // "default" | "geo" | "homeBase" | "manual" — tracks whether the origin field can still be auto-set
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
@@ -589,6 +689,7 @@ export default function App() {
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI, warning: itineraryWarning } = useItinerary();
   const { importBooking, loading: importBookingLoading, error: importBookingError } = useImportBooking();
   const { recommend: recommendDestinations, loading: destinationRecLoading, error: destinationRecError } = useDestinationRecommender();
+  const { parse: parseConversationalTrip, loading: conversationalLoading, error: conversationalError } = useConversationalTrip();
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
   const { generate: generatePacking, loading: packingLoading, categories: packingCategories, usedAI: packingUsedAI, warning: packingWarning } = usePacking();
   const [packedItems, setPackedItems] = useState({}); // "category::item" -> bool
@@ -1560,7 +1661,37 @@ export default function App() {
       </RotatingHero>
 
       <div className="search-dock wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
-<form className="search-card" onSubmit={handleSearch}>
+{showConversationalEntry ? (
+        <div className="search-card">
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Describe your trip</div>
+          <p className="pref-hint" style={{ marginBottom: 16 }}>
+            Tell Ami where you're going (or that you don't know yet), roughly when, who's coming, and anything else that matters — we'll fill in the rest.
+          </p>
+          <textarea
+            className="pref-textarea"
+            style={{ minHeight: 100 }}
+            placeholder="e.g. A relaxed week in Portugal in November for me and my husband, mid-range budget, we love good food and slow mornings, no strict diet"
+            value={tripDescription}
+            onChange={(e) => setTripDescription(e.target.value)}
+          />
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <button type="button" className="book-btn" onClick={handleParseConversationalTrip} disabled={conversationalLoading || !tripDescription.trim()}>
+              {conversationalLoading ? "Reading your trip…" : "Plan it →"}
+            </button>
+            <button type="button" className="book-btn secondary" onClick={() => setShowConversationalEntry(false)}>
+              Or search manually →
+            </button>
+          </div>
+          {conversationalParseStatus && <p className="pref-hint" style={{ marginTop: 12 }}>{conversationalParseStatus}</p>}
+        </div>
+      ) : (
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <button type="button" className="book-btn secondary" style={{ margin: 0 }} onClick={() => setShowConversationalEntry(true)}>
+              ← Describe your trip instead
+            </button>
+          </div>
+          <form className="search-card" onSubmit={handleSearch}>
         <div style={{ marginBottom: 16 }}>
           {!showDestinationRecommender ? (
             <button type="button" className="book-btn secondary" onClick={() => setShowDestinationRecommender(true)}>
@@ -1685,6 +1816,8 @@ export default function App() {
           {error && <div className="search-error">{error}</div>}
           {results?.usedMockData && <div className="demo-note">Demo data — connect a Duffel API key in server/.env for live fares. See README.md.</div>}
         </form>
+        </>
+      )}
         <p className="trust-line">
           Free to plan, no card required — every price links straight to the airline or hotel's own checkout, and we scan dates ±14 days to catch cheaper fares nearby.
           {selectedTravelGroupForSearch && " Prices reflect real per-person fares for this group — children and infants are priced correctly, not as full adult fares."}
