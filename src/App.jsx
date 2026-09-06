@@ -464,6 +464,8 @@ export default function App() {
   const [showConversationalEntry, setShowConversationalEntry] = useState(true);
   const [tripDescription, setTripDescription] = useState("");
   const [conversationalParseStatus, setConversationalParseStatus] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [voiceRecognition, setVoiceRecognition] = useState(null);
 
   const handleSavePreferences = async () => {
     if (!user) {
@@ -536,6 +538,34 @@ export default function App() {
       setSelectedFlight(data.primary.offers[0]);
       setSelectedFlexOffset(null);
     }
+  };
+
+  const handleToggleVoiceInput = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setConversationalParseStatus("Voice input isn't supported in this browser — try Chrome on desktop or Android, or just type instead.");
+      return;
+    }
+    if (isListening && voiceRecognition) {
+      voiceRecognition.stop();
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map((r) => r[0].transcript).join(" ");
+      setTripDescription((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+    recognition.onerror = () => {
+      setConversationalParseStatus("Didn't catch that — try again, or just type.");
+      setIsListening(false);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+    setVoiceRecognition(recognition);
+    setIsListening(true);
   };
 
   function monthNameFromDate(dateStr) {
@@ -1674,9 +1704,12 @@ export default function App() {
             value={tripDescription}
             onChange={(e) => setTripDescription(e.target.value)}
           />
-          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
             <button type="button" className="book-btn" onClick={handleParseConversationalTrip} disabled={conversationalLoading || !tripDescription.trim()}>
               {conversationalLoading ? "Reading your trip…" : "Plan it →"}
+            </button>
+            <button type="button" className="book-btn secondary" onClick={handleToggleVoiceInput}>
+              {isListening ? "🎙️ Listening… (tap to stop)" : "🎤 Speak instead"}
             </button>
             <button type="button" className="book-btn secondary" onClick={() => setShowConversationalEntry(false)}>
               Or search manually →
@@ -1686,12 +1719,12 @@ export default function App() {
         </div>
       ) : (
         <>
+          <form className="search-card" onSubmit={handleSearch}>
           <div style={{ marginBottom: 12 }}>
             <button type="button" className="book-btn secondary" style={{ margin: 0 }} onClick={() => setShowConversationalEntry(true)}>
               ← Describe your trip instead
             </button>
           </div>
-          <form className="search-card" onSubmit={handleSearch}>
         <div style={{ marginBottom: 16 }}>
           {!showDestinationRecommender ? (
             <button type="button" className="book-btn secondary" onClick={() => setShowDestinationRecommender(true)}>
