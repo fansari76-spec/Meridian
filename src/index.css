@@ -250,6 +250,29 @@ section.panel:last-of-type{border-bottom:none;}
 .pilgrimage-itinerary-stop-head span{font-size:0.8rem; color:#5A5F68; font-weight:600;}
 .pilgrimage-itinerary-stop ul{margin:0; padding-left:18px; font-size:0.85rem; color:#3A3F49; line-height:1.6;}
 
+.ritual-checklist{margin-top:28px; padding-top:24px; border-top:1px solid var(--line);}
+.ritual-checklist h4{font-size:0.85rem; color:var(--teal); margin-bottom:12px;}
+.ritual-card{background:var(--paper-dim); border-radius:14px; padding:18px 20px; margin-bottom:10px;}
+.ritual-card-head{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; font-size:0.95rem; margin-bottom:6px;}
+.ritual-lifetime{font-size:0.8rem; color:#5A5F68; font-weight:400;}
+.ritual-dua-link{font-size:0.82rem; color:var(--indigo); font-weight:700; white-space:nowrap;}
+.ritual-duas{margin-top:10px; display:flex; flex-direction:column; gap:10px;}
+.ritual-dua-entry{background:var(--white); border-radius:10px; padding:12px 14px;}
+.ritual-dua-occasion{font-size:0.78rem; font-weight:700; color:#5A5F68; text-transform:uppercase; letter-spacing:0.02em;}
+.ritual-dua-action{font-size:0.9rem; margin-top:4px; color:var(--ink);}
+.ritual-dua-note{font-size:0.8rem; color:#5A5F68; margin-top:6px; font-style:italic;}
+.ritual-dua-entry .ritual-dua-link{display:inline-block; margin-top:8px;}
+.ritual-live{margin-top:12px; text-align:center; background:var(--white); border-radius:12px; padding:20px;}
+.ritual-live-count{font-family:'Sora',sans-serif; font-size:2.4rem; font-weight:700; color:var(--indigo);}
+.ritual-live-sub{font-size:0.82rem; color:#5A5F68; margin-top:4px;}
+.ritual-adjust{display:flex; gap:10px; justify-content:center; margin-top:12px;}
+.ritual-adjust button{border:1px solid var(--line); background:var(--white); border-radius:8px; padding:8px 16px; font-weight:700; font-size:0.9rem; cursor:pointer;}
+.ritual-completed-badge{background:var(--teal-light); color:var(--indigo-deep); font-weight:700; font-size:0.9rem; padding:12px 16px; border-radius:10px; text-align:center;}
+.ritual-progress-dots{display:flex; gap:6px; margin-top:16px; justify-content:center;}
+.ritual-dot{width:9px; height:9px; border-radius:50%; background:var(--line);}
+.ritual-dot.active{background:var(--gold);}
+.ritual-dot.done{background:var(--teal);}
+
 .account-panel{display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center;}
 .signup-card{background:var(--white); border:1px solid var(--line); border-radius:18px; padding:32px; max-width:400px;}
 .oauth-btn{display:flex; align-items:center; gap:12px; width:100%; border:1px solid var(--line); background:var(--white); border-radius:10px; padding:12px 16px; font-weight:600; font-size:0.88rem; margin-bottom:10px;}

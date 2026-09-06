@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import AuthButtons from "./components/AuthButtons.jsx";
 import { PILGRIMAGE_SITES, totalPilgrimageNights } from "./data/pilgrimage.js";
+import { RITUAL_CHECKLISTS } from "./data/ritualChecklists.js";
+import { useMotionRitualTracker } from "./lib/useMotionRitualTracker.js";
+import { logRitualCompletion, listRitualHistory, lifetimeCountFor, uploadRitualPhoto } from "./lib/ritualLog.js";
 import { nearestAirportCode } from "./data/majorAirports.js";
 import { calculateBudget } from "./lib/budget.js";
 import { useFlightSearch } from "./lib/useFlightSearch.js";
@@ -181,6 +184,201 @@ function RotatingHero({ images, intervalMs = 6000, style, children }) {
   );
 }
 
+// Automated Start → live motion-based counting → auto "Completed" →
+// small manual +/- for the rare correction, per the honest limits of
+// browser motion sensors described in useMotionRitualTracker.js.
+function RitualCounterCard({ step, lifetimeCount, onComplete }) {
+  const tracker = useMotionRitualTracker(step.counter);
+
+  return (
+    <div className="ritual-card">
+      <div className="ritual-card-head">
+        <div>
+          <strong>{step.name}</strong>
+          {lifetimeCount > 0 && <span className="ritual-lifetime"> · completed {lifetimeCount}× before</span>}
+        </div>
+      </div>
+      {step.note && <p className="pref-hint">{step.note}</p>}
+
+      {step.duas?.length > 0 && (
+        <div className="ritual-duas">
+          {step.duas.map((d, i) => (
+            <div key={i} className="ritual-dua-entry">
+              <div className="ritual-dua-occasion">{d.occasion}</div>
+              <div className="ritual-dua-action">{d.action}</div>
+              {d.note && <div className="ritual-dua-note">{d.note}</div>}
+              <a href={d.link} target="_blank" rel="noreferrer" className="ritual-dua-link">{d.reference} →</a>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tracker.unsupported && <p className="pref-hint">Your device doesn't support motion tracking — use the manual counter below instead.</p>}
+      {tracker.permissionDenied && <p className="pref-hint">Motion access was denied — you can still count manually below.</p>}
+
+      {!tracker.tracking && !tracker.completed && (
+        <button className="book-btn" onClick={tracker.start}>Start {step.counter.unit === "circuit" ? "Tawaf" : "tracking"}</button>
+      )}
+
+      {(tracker.tracking || tracker.circuit > 0) && !tracker.completed && (
+        <div className="ritual-live">
+          <div className="ritual-live-count">{tracker.circuit} of {tracker.target}</div>
+          <div className="ritual-live-sub">{step.counter.unit}{tracker.circuit !== 1 ? "s" : ""} · {tracker.steps} steps · ~{Math.round(tracker.distanceMeters)}m</div>
+          <div className="ritual-adjust">
+            <button type="button" onClick={() => tracker.adjustCircuit(-1)}>−1</button>
+            <button type="button" onClick={() => tracker.adjustCircuit(1)}>+1</button>
+          </div>
+          {tracker.tracking && <button className="book-btn secondary" style={{ marginTop: 8 }} onClick={tracker.stop}>Pause</button>}
+        </div>
+      )}
+
+      {tracker.completed && (
+        <div className="ritual-completed">
+          <div className="ritual-completed-badge">✓ Completed — {tracker.target} of {tracker.target} {step.counter.unit}s</div>
+          <button
+            className="book-btn"
+            style={{ marginTop: 10 }}
+            onClick={() => {
+              onComplete(tracker.circuit);
+              tracker.reset();
+            }}
+          >
+            Log this & continue →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RitualChecklistItem({ step, lifetimeCount, onComplete }) {
+  const [done, setDone] = useState(false);
+  return (
+    <div className="ritual-card">
+      <div className="ritual-card-head">
+        <div>
+          <strong>{step.name}</strong>
+          {lifetimeCount > 0 && <span className="ritual-lifetime"> · completed {lifetimeCount}× before</span>}
+        </div>
+      </div>
+      {step.note && <p className="pref-hint">{step.note}</p>}
+      {!done ? (
+        <button
+          className="book-btn"
+          onClick={() => {
+            setDone(true);
+            onComplete();
+          }}
+        >
+          Mark complete
+        </button>
+      ) : (
+        <div className="ritual-completed-badge">✓ Completed</div>
+      )}
+    </div>
+  );
+}
+
+// Full checklist for a tradition — auto-advances through steps as
+// each is completed, and shows a closing message once every step is
+// done. Photo upload is per-step and attaches to that step's history
+// entry.
+function RitualChecklist({ site, user, history, onLogged }) {
+  const steps = RITUAL_CHECKLISTS[site.id] || [];
+  const [stepIndex, setStepIndex] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [pendingPhotos, setPendingPhotos] = useState([]);
+
+  if (!steps.length) return null;
+  const allDone = stepIndex >= steps.length;
+
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploadStatus("Uploading…");
+    try {
+      const url = await uploadRitualPhoto(user.uid, file);
+      setPendingPhotos((prev) => [...prev, url]);
+      setUploadStatus("Photo added — it'll attach when you mark this step complete.");
+    } catch (err) {
+      setUploadStatus(err.message || "Upload failed.");
+    }
+  }
+
+  async function handleComplete(step, count = null) {
+    if (user) {
+      const logged = await logRitualCompletion(user.uid, {
+        traditionId: site.id,
+        stepId: step.id,
+        stepName: step.name,
+        count,
+        unit: step.counter?.unit || null,
+        photoUrls: pendingPhotos,
+      });
+      if (logged) onLogged(logged);
+    }
+    setPendingPhotos([]);
+    setUploadStatus(null);
+    setStepIndex((i) => i + 1);
+  }
+
+  return (
+    <div className="ritual-checklist">
+      <h4>Ritual checklist</h4>
+      {!user && <p className="pref-hint">Sign in (Account tab) so completed rituals and photos are saved to your account permanently.</p>}
+
+      {!allDone ? (
+        <>
+          {steps[stepIndex].counter ? (
+            <RitualCounterCard
+              step={steps[stepIndex]}
+              lifetimeCount={lifetimeCountFor(history, site.id, steps[stepIndex].id)}
+              onComplete={(count) => handleComplete(steps[stepIndex], count)}
+            />
+          ) : (
+            <RitualChecklistItem
+              step={steps[stepIndex]}
+              lifetimeCount={lifetimeCountFor(history, site.id, steps[stepIndex].id)}
+              onComplete={() => handleComplete(steps[stepIndex])}
+            />
+          )}
+          {user && (
+            <div style={{ marginTop: 10 }}>
+              <label className="book-btn secondary" style={{ display: "inline-block", cursor: "pointer" }}>
+                📷 Add a photo to this step
+                <input type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} style={{ display: "none" }} />
+              </label>
+              {pendingPhotos.length > 0 && <span className="pref-hint" style={{ marginLeft: 8 }}>{pendingPhotos.length} photo(s) attached</span>}
+              {uploadStatus && <p className="pref-hint" style={{ marginTop: 6 }}>{uploadStatus}</p>}
+            </div>
+          )}
+          {stepIndex + 1 < steps.length && (
+            <p className="pref-hint" style={{ marginTop: 10 }}>Next: {steps[stepIndex + 1].name}</p>
+          )}
+        </>
+      ) : (
+        <div className="ritual-card">
+          <div className="ritual-completed-badge">✓ All steps completed</div>
+          <p style={{ marginTop: 10 }}>
+            {site.id === "islam" && "May your Umrah be accepted. Taqabbal Allahu minna wa minkum."}
+            {site.id === "judaism" && "May your prayers be answered."}
+            {site.id === "hindu" && "May your darshan bring peace."}
+            {site.id === "buddhist" && "May this practice bring merit and clarity."}
+            {(site.id === "catholic" || site.id === "christianity") && "May your pilgrimage bring you closer to grace."}
+          </p>
+          <button className="book-btn secondary" style={{ marginTop: 10 }} onClick={() => setStepIndex(0)}>Start again</button>
+        </div>
+      )}
+
+      <div className="ritual-progress-dots">
+        {steps.map((s, i) => (
+          <div key={s.id} className={`ritual-dot ${i < stepIndex ? "done" : i === stepIndex ? "active" : ""}`} title={s.name} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // One confirmed-working photo (the original hero image) plus a
 // well-known scenic set spanning mountains, beach, historic
 // architecture, a museum, a romantic/honeymoon shot, a family-friendly
@@ -274,6 +472,7 @@ export default function App() {
   const [groupTripUrl, setGroupTripUrl] = useState(null);
   const [myGroupTrips, setMyGroupTrips] = useState([]);
   const [myTravelGroups, setMyTravelGroups] = useState([]);
+  const [ritualHistory, setRitualHistory] = useState([]);
   const [groupNameInput, setGroupNameInput] = useState("");
   const [familyRows, setFamilyRows] = useState([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
   const [travelGroupStatus, setTravelGroupStatus] = useState(null);
@@ -324,6 +523,7 @@ export default function App() {
       setSentPings([]);
       setMyGroupTrips([]);
       setMyTravelGroups([]);
+      setRitualHistory([]);
       setPrefsLoaded(false);
       return;
     }
@@ -331,6 +531,7 @@ export default function App() {
     listFriends(user.uid).then(setFriends);
     listMyGroupTrips(user.uid).then(setMyGroupTrips);
     listTravelGroups(user.uid).then(setMyTravelGroups);
+    listRitualHistory(user.uid).then(setRitualHistory);
     loadPreferences(user.uid).then((saved) => {
       if (saved) setPrefs((p) => ({ ...p, ...saved }));
       setPrefsLoaded(true);
@@ -1962,6 +2163,13 @@ export default function App() {
             <p className="pref-hint" style={{ marginTop: 8 }}>
               Sets flights to the right gateway city, a {totalPilgrimageNights(selectedFaith)}-night window, and the appropriate dietary filter — then builds a day-by-day plan following this itinerary.
             </p>
+
+            <RitualChecklist
+              site={selectedFaith}
+              user={user}
+              history={ritualHistory}
+              onLogged={(logged) => setRitualHistory((prev) => [logged, ...prev])}
+            />
           </div>
         )}
         <p style={{ marginTop: 18, fontSize: "0.85rem", color: "#5A5F68" }}>
