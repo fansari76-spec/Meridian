@@ -77,8 +77,9 @@ async function generateWithClaude({ destination, days, interests, cuisine, faith
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 3000,
+      max_tokens: 4000,
       messages: [{ role: "user", content: prompt }],
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
     }),
   });
 
@@ -125,6 +126,8 @@ ${dietaryRestrictions?.length ? `STRICT dietary restrictions to respect for ever
 ${favoriteCuisines?.length ? `Favorite cuisines, in order of preference: ${favoriteCuisines.join(" > ")}. Favor these cuisines for meal recommendations where it fits the destination.` : ""}
 ${accessibilityNotes ? `Accessibility needs to accommodate: ${accessibilityNotes}` : ""}
 ${otherNotes ? `Additional notes from the traveler: ${otherNotes}` : ""}
+
+Before naming any specific museum, landmark, or attraction and its admission price, use web search to verify: (1) it's a real, currently-operating place, (2) which building or address it's actually located at — never combine two separate real places into one made-up stop, and (3) its actual current admission price. If you can't verify a specific price with reasonable confidence, write "admission fee applies (check current pricing on-site)" in the description instead of inventing a number, and use 0 for "cost" in that case. Accuracy on names, locations, and prices matters more than sounding polished — a wrong but confident-sounding recommendation is worse than an honest "verify on-site."
 
 Respond with ONLY a JSON array (no markdown fences, no preamble), one object per day, in this exact shape:
 [
