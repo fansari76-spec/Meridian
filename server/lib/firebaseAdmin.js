@@ -21,8 +21,15 @@ export function isFirebaseAdminConfigured() {
 export function getFirebaseAdminFirestore() {
   if (!isFirebaseAdminConfigured()) return null;
   if (!getApps().length) {
-    const json = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY, "base64").toString("utf-8");
-    const serviceAccount = JSON.parse(json);
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+    const json = Buffer.from(raw, "base64").toString("utf-8");
+    let serviceAccount;
+    try {
+      serviceAccount = JSON.parse(json);
+    } catch (err) {
+      console.error("FIREBASE_SERVICE_ACCOUNT_KEY diagnostic — env var length:", raw.length, "decoded length:", json.length, "decoded starts:", JSON.stringify(json.slice(0, 30)), "decoded ends:", JSON.stringify(json.slice(-30)));
+      throw err;
+    }
     initializeApp({ credential: cert(serviceAccount) });
   }
   return getFirestore();
