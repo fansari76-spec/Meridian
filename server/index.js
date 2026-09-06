@@ -14,6 +14,7 @@ import conciergeRouter from "./routes/concierge.js";
 import packingRouter from "./routes/packing.js";
 import briefingRouter from "./routes/briefing.js";
 import weatherRouter from "./routes/weather.js";
+import invitesRouter from "./routes/invites.js";
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use("/api/concierge", conciergeRouter);
 app.use("/api/packing", packingRouter);
 app.use("/api/briefing", briefingRouter);
 app.use("/api/weather", weatherRouter);
+app.use("/api/invites", invitesRouter);
 
 app.get("/health", (req, res) => {
   res.json({
@@ -38,6 +40,8 @@ app.get("/health", (req, res) => {
     flights: process.env.DUFFEL_API_KEY ? "live" : "demo",
     stays: process.env.GOOGLE_PLACES_API_KEY ? "live" : "demo",
     itinerary: process.env.ANTHROPIC_API_KEY ? "live" : "demo",
+    emailInvites: process.env.RESEND_API_KEY ? "live" : "not connected",
+    smsInvites: process.env.TWILIO_ACCOUNT_SID ? "live" : "not connected",
   });
 });
 

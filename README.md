@@ -67,6 +67,29 @@ shows a clear "demo mode" note instead of crashing.
 5. Restart the frontend. Sign-in buttons now open real provider
    popups, and "Save this trip" writes to Firestore instead of memory.
 
+### Email invites (Resend)
+1. Sign up at [resend.com](https://resend.com) (free tier is generous).
+2. Add and verify a domain you own under Domains — this adds a couple
+   of DNS records (SPF/DKIM) and is the single biggest factor in
+   invite emails landing in the inbox instead of spam.
+3. Create an API key, add `RESEND_API_KEY=` to `server/.env` (or
+   Render's environment variables in production).
+4. Add `INVITE_FROM_EMAIL=` — a verified address on that domain, e.g.
+   `invites@yourdomain.com`.
+5. Restart the backend — `emailInvites:live` on `/health`. Family
+   invites in My Groups now send a real email instead of a "not
+   connected" message.
+
+### SMS invites (Twilio)
+1. Sign up at [twilio.com](https://twilio.com), buy a phone number.
+2. In the US, sending business SMS at real volume requires
+   registering for A2P 10DLC through Twilio's console — a
+   carrier-required anti-spam step, separate from the API key itself.
+3. Add `TWILIO_ACCOUNT_SID=`, `TWILIO_AUTH_TOKEN=`, and
+   `TWILIO_FROM_NUMBER=` (your Twilio number, e.g. `+15551234567`) to
+   `server/.env` / Render's environment variables.
+4. Restart the backend — `smsInvites:live` on `/health`.
+
 ## What's genuinely complete vs. what's next
 
 **Complete and working today:**

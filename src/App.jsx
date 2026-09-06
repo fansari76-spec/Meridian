@@ -22,6 +22,7 @@ import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation 
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
 import { createGroupTrip, listMyGroupTrips } from "./lib/groupTrips.js";
 import { createTravelGroup, listTravelGroups, deleteTravelGroup, setTravelGroupActive, updateTravelGroup } from "./lib/travelGroups.js";
+import { useInvites, detectContactMethod } from "./lib/invites.js";
 import { sha256Hex } from "./lib/hash.js";
 
 const TABS = [
@@ -483,6 +484,9 @@ export default function App() {
   const [tripMemberSearchTerm, setTripMemberSearchTerm] = useState({}); // familyIndex -> string
   const [tripMemberSearchResults, setTripMemberSearchResults] = useState({}); // familyIndex -> array
   const [startTripStatus, setStartTripStatus] = useState(null);
+  const { sendInvite, sending: sendingInvite } = useInvites();
+  const [familyInviteContact, setFamilyInviteContact] = useState({}); // familyIndex -> string (email or phone)
+  const [familyInviteStatus, setFamilyInviteStatus] = useState({}); // familyIndex -> string
   const [selectedTravelGroupForSearch, setSelectedTravelGroupForSearch] = useState(null);
   const [contactMatches, setContactMatches] = useState([]);
   const [checkingContacts, setCheckingContacts] = useState(false);
@@ -1087,6 +1091,26 @@ export default function App() {
 
   function familyRowTotal(row) {
     return (Number(row.adults) || 0) + parseAges(row.childrenAgesText).length;
+  }
+
+  async function handleSendFamilyInvite(index, groupName) {
+    const contact = (familyInviteContact[index] || "").trim();
+    const method = detectContactMethod(contact);
+    if (!method) {
+      setFamilyInviteStatus((prev) => ({ ...prev, [index]: "Enter a valid email or phone number first." }));
+      return;
+    }
+    setFamilyInviteStatus((prev) => ({ ...prev, [index]: "Sending…" }));
+    const result = await sendInvite({
+      method,
+      destination: contact,
+      inviterName: user?.displayName || user?.email || "Someone",
+      groupName,
+    });
+    setFamilyInviteStatus((prev) => ({
+      ...prev,
+      [index]: result.sent ? `Invite sent by ${method === "email" ? "email" : "text"}.` : result.reason,
+    }));
   }
 
   async function handleSaveTravelGroup() {
@@ -2187,6 +2211,25 @@ export default function App() {
                     )}
                   </div>
                   <p className="pref-hint" style={{ marginTop: 6 }}>{familyRowTotal(row)} people in this family</p>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      placeholder="Their email or phone number"
+                      value={familyInviteContact[i] || ""}
+                      onChange={(e) => setFamilyInviteContact((prev) => ({ ...prev, [i]: e.target.value }))}
+                      style={{ flex: "1 1 220px", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: "0.85rem" }}
+                    />
+                    <button
+                      type="button"
+                      className="book-btn secondary"
+                      style={{ margin: 0, padding: "8px 14px" }}
+                      onClick={() => handleSendFamilyInvite(i, groupNameInput || "your trip")}
+                      disabled={sendingInvite}
+                    >
+                      Invite {row.label || "them"}
+                    </button>
+                  </div>
+                  {familyInviteStatus[i] && <p className="pref-hint" style={{ marginTop: 6 }}>{familyInviteStatus[i]}</p>}
                 </div>
               ))}
 
