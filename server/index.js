@@ -15,14 +15,27 @@ import packingRouter from "./routes/packing.js";
 import briefingRouter from "./routes/briefing.js";
 import weatherRouter from "./routes/weather.js";
 import invitesRouter from "./routes/invites.js";
+import priceAlertsRouter from "./routes/priceAlerts.js";
 
 const app = express();
 
 // In production, restrict CORS to your deployed frontend URL (set
 // FRONTEND_URL as an env var on Render). Falls back to allowing
 // everything in local development.
-const allowedOrigin = process.env.FRONTEND_URL || "*";
-app.use(cors({ origin: allowedOrigin }));
+const allowedOrigins = (process.env.FRONTEND_URL || "*")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS: " + origin));
+    }
+  }
+}));
 app.use(express.json());
 
 app.use("/api/flights", flightsRouter);
@@ -33,6 +46,7 @@ app.use("/api/packing", packingRouter);
 app.use("/api/briefing", briefingRouter);
 app.use("/api/weather", weatherRouter);
 app.use("/api/invites", invitesRouter);
+app.use("/api/alerts", priceAlertsRouter);
 
 app.get("/health", (req, res) => {
   res.json({
@@ -42,6 +56,7 @@ app.get("/health", (req, res) => {
     itinerary: process.env.ANTHROPIC_API_KEY ? "live" : "demo",
     emailInvites: process.env.RESEND_API_KEY ? "live" : "not connected",
     smsInvites: process.env.TWILIO_ACCOUNT_SID ? "live" : "not connected",
+    priceAlerts: (process.env.FIREBASE_SERVICE_ACCOUNT_KEY && process.env.CRON_SECRET) ? "configured" : "not configured",
   });
 });
 
