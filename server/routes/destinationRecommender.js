@@ -100,6 +100,7 @@ Respond with ONLY a JSON array (no markdown fences, no preamble), in this exact 
 [
   {
     "name": "City, Country",
+    "airportCode": "3-letter IATA code of that city's main international airport, verified via search",
     "matchReason": "1-2 sentences on why this fits what they asked for, specific to their actual inputs, not generic.",
     "bestTimeToVisit": "Real, verified best-time-to-visit window for this destination.",
     "costTier": "$" | "$$" | "$$$",
@@ -112,10 +113,10 @@ Make the 4 destinations genuinely varied from each other (different regions/cont
 
 function fallbackDestinations() {
   return [
-    { name: "Lisbon, Portugal", matchReason: "A reliable pick for first-time international travelers — walkable, affordable, and welcoming.", bestTimeToVisit: "March–May or September–October", costTier: "$$", highlights: ["Historic trams & viewpoints", "Fresh seafood", "Easy day trips to Sintra"] },
-    { name: "Kyoto, Japan", matchReason: "For travelers wanting culture and craft over nightlife.", bestTimeToVisit: "March–April (cherry blossoms) or November (fall colors)", costTier: "$$$", highlights: ["Historic temples", "Traditional tea houses", "Bamboo groves"] },
-    { name: "Mexico City, Mexico", matchReason: "Big-city energy with strong food culture and good value.", bestTimeToVisit: "March–May", costTier: "$", highlights: ["World-class museums", "Street food", "Vibrant neighborhoods"] },
-    { name: "Queenstown, New Zealand", matchReason: "For travelers who want outdoor adventure as the centerpiece of the trip.", bestTimeToVisit: "December–February (summer) or June–August (ski season)", costTier: "$$$", highlights: ["Hiking & adventure sports", "Lake & mountain scenery", "Nearby wine country"] },
+    { name: "Lisbon, Portugal", airportCode: "LIS", matchReason: "A reliable pick for first-time international travelers — walkable, affordable, and welcoming.", bestTimeToVisit: "March–May or September–October", costTier: "$$", highlights: ["Historic trams & viewpoints", "Fresh seafood", "Easy day trips to Sintra"] },
+    { name: "Kyoto, Japan", airportCode: "KIX", matchReason: "For travelers wanting culture and craft over nightlife.", bestTimeToVisit: "March–April (cherry blossoms) or November (fall colors)", costTier: "$$$", highlights: ["Historic temples", "Traditional tea houses", "Bamboo groves"] },
+    { name: "Mexico City, Mexico", airportCode: "MEX", matchReason: "Big-city energy with strong food culture and good value.", bestTimeToVisit: "March–May", costTier: "$", highlights: ["World-class museums", "Street food", "Vibrant neighborhoods"] },
+    { name: "Queenstown, New Zealand", airportCode: "ZQN", matchReason: "For travelers who want outdoor adventure as the centerpiece of the trip.", bestTimeToVisit: "December–February (summer) or June–August (ski season)", costTier: "$$$", highlights: ["Hiking & adventure sports", "Lake & mountain scenery", "Nearby wine country"] },
   ];
 }
 
