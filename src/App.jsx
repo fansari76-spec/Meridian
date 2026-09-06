@@ -1550,6 +1550,7 @@ export default function App() {
       </RotatingHero>
 
       <div className="search-dock wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
+<form className="search-card" onSubmit={handleSearch}>
         <div style={{ marginBottom: 16 }}>
           {!showDestinationRecommender ? (
             <button type="button" className="book-btn secondary" onClick={() => setShowDestinationRecommender(true)}>
@@ -1612,7 +1613,8 @@ export default function App() {
           )}
         </div>
 
-        <form className="search-card" onSubmit={handleSearch}>
+        
+
           <div className="search-row search-row--centered">
             <div className="field">
               <label>From → To (airport codes)</label>
