@@ -478,6 +478,11 @@ export default function App() {
   const [travelGroupStatus, setTravelGroupStatus] = useState(null);
   const [editingGroupId, setEditingGroupId] = useState(null); // group currently loaded into the form for editing, or null for "new group"
   const [viewingGroupId, setViewingGroupId] = useState(null); // group currently expanded to show its family breakdown
+  const [startingTripGroupId, setStartingTripGroupId] = useState(null); // group currently expanded to attach real people and start a trip
+  const [tripMemberAssignments, setTripMemberAssignments] = useState({}); // familyIndex -> {uid, name, email}
+  const [tripMemberSearchTerm, setTripMemberSearchTerm] = useState({}); // familyIndex -> string
+  const [tripMemberSearchResults, setTripMemberSearchResults] = useState({}); // familyIndex -> array
+  const [startTripStatus, setStartTripStatus] = useState(null);
   const [selectedTravelGroupForSearch, setSelectedTravelGroupForSearch] = useState(null);
   const [contactMatches, setContactMatches] = useState([]);
   const [checkingContacts, setCheckingContacts] = useState(false);
@@ -1137,6 +1142,111 @@ export default function App() {
     setGroupNameInput("");
     setFamilyRows([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
     setTravelGroupStatus(null);
+  }
+
+  // --- Start a real group trip directly from a saved roster ---
+
+  function handleOpenStartTrip(group) {
+    setStartingTripGroupId(group.id);
+    setTripMemberAssignments({});
+    setTripMemberSearchTerm({});
+    setTripMemberSearchResults({});
+    setStartTripStatus(null);
+    setViewingGroupId(null);
+    setEditingGroupId(null);
+  }
+
+  function handleCloseStartTrip() {
+    setStartingTripGroupId(null);
+  }
+
+  async function handleFamilyMemberSearchChange(familyIndex, term) {
+    setTripMemberSearchTerm((prev) => ({ ...prev, [familyIndex]: term }));
+    if (term.trim().length < 2) {
+      setTripMemberSearchResults((prev) => ({ ...prev, [familyIndex]: [] }));
+      return;
+    }
+    const results = await searchUsersByPrefix(term);
+    setTripMemberSearchResults((prev) => ({ ...prev, [familyIndex]: results.filter((r) => r.uid !== user?.uid) }));
+  }
+
+  function handleAssignFamilyMember(familyIndex, match) {
+    setTripMemberAssignments((prev) => ({ ...prev, [familyIndex]: { uid: match.uid, name: match.displayName || match.email, email: match.email } }));
+    setTripMemberSearchTerm((prev) => ({ ...prev, [familyIndex]: "" }));
+    setTripMemberSearchResults((prev) => ({ ...prev, [familyIndex]: [] }));
+  }
+
+  function handleUnassignFamilyMember(familyIndex) {
+    setTripMemberAssignments((prev) => {
+      const next = { ...prev };
+      delete next[familyIndex];
+      return next;
+    });
+  }
+
+  async function handleAssignFamilyMemberByEmail(familyIndex, email) {
+    if (!email.trim()) return;
+    const found = await findUserByEmail(email.trim());
+    if (!found) {
+      setStartTripStatus(`No TripAmi account found for ${email} — they'd need to sign up first.`);
+      return;
+    }
+    handleAssignFamilyMember(familyIndex, found);
+    setStartTripStatus(null);
+  }
+
+  async function handleCreateTripFromGroup(group) {
+    if (!user) {
+      setStartTripStatus("Sign in first (Account tab) to start a group trip.");
+      setActiveTab("account");
+      return;
+    }
+    if (itineraryPlan.length === 0) {
+      setStartTripStatus("Build an itinerary first (Itinerary tab), then come back to start the trip.");
+      return;
+    }
+    setStartTripStatus("Creating your group trip…");
+    try {
+      const assigned = Object.values(tripMemberAssignments);
+      const memberIds = [...new Set(assigned.map((m) => m.uid))];
+      const memberNames = {};
+      assigned.forEach((m) => (memberNames[m.uid] = m.name));
+
+      const id = await createGroupTrip({
+        ownerId: user.uid,
+        ownerName: user.displayName || user.email,
+        origin: form.origin,
+        destination: form.destination,
+        departDate: form.departDate,
+        returnDate: form.returnDate,
+        travelers: group.total,
+        itineraryPlan,
+        memberIds,
+        memberNames,
+        rosterSnapshot: { name: group.name, families: group.families, adults: group.adults, children: group.children, total: group.total },
+      });
+
+      const url = `${window.location.origin}/group/${id}`;
+      setMyGroupTrips((prev) => [
+        { id, origin: form.origin, destination: form.destination, departDate: form.departDate, returnDate: form.returnDate, memberIds: [user.uid, ...memberIds] },
+        ...prev,
+      ]);
+      await Promise.all(
+        assigned.map((m) =>
+          sendPing({
+            fromUserId: user.uid,
+            fromName: user.displayName || user.email,
+            toUserId: m.uid,
+            message: `You're invited to "${group.name}" — ${form.destination}! ${url}`,
+          }).catch(() => {})
+        )
+      );
+      setStartTripStatus(`Trip created! `);
+      setStartingTripGroupId(null);
+      window.open(url, "_blank");
+    } catch (err) {
+      setStartTripStatus(err.message || "Couldn't create the trip.");
+    }
   }
 
   async function handleDeleteTravelGroup(groupId) {
@@ -1936,14 +2046,17 @@ export default function App() {
                           <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleEditGroup(g)}>
                             Edit
                           </button>
+                          <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleDeleteTravelGroup(g.id)}>
+                            Delete
+                          </button>
                           <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleToggleTravelGroupActive(g)}>
                             {g.active === false ? "Set active" : "Set inactive"}
                           </button>
-                          <button className="book-btn" style={{ margin: 0 }} onClick={() => handleUseTravelGroupForSearch(g)}>
+                          <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleUseTravelGroupForSearch(g)}>
                             Use for search
                           </button>
-                          <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleDeleteTravelGroup(g.id)}>
-                            Delete
+                          <button className="book-btn" style={{ margin: 0 }} onClick={() => (startingTripGroupId === g.id ? handleCloseStartTrip() : handleOpenStartTrip(g))}>
+                            {startingTripGroupId === g.id ? "Close" : "Start Trip"}
                           </button>
                         </div>
                       </div>
@@ -1958,6 +2071,60 @@ export default function App() {
                               </span>
                             </div>
                           ))}
+                        </div>
+                      )}
+                      {startingTripGroupId === g.id && (
+                        <div className="group-start-trip-panel">
+                          <p className="pref-hint" style={{ marginBottom: 12 }}>
+                            Attach a real TripAmi person to represent each family — that's who'll chat and RSVP. Headcount (including kids) still carries through for flights and hotels either way. You ({user?.displayName || user?.email}) are automatically included.
+                          </p>
+                          {g.families.map((f, i) => (
+                            <div key={i} className="group-start-trip-family">
+                              <div className="group-start-trip-family-label">
+                                <strong>{f.label}</strong>
+                                <span className="pref-hint">
+                                  {f.adults} adult{f.adults !== 1 ? "s" : ""}
+                                  {f.childrenAges?.length > 0 && `, ${f.childrenAges.length} child${f.childrenAges.length !== 1 ? "ren" : ""}`}
+                                </span>
+                              </div>
+                              {tripMemberAssignments[i] ? (
+                                <div className="group-start-trip-assigned">
+                                  ✓ {tripMemberAssignments[i].name}
+                                  <button type="button" onClick={() => handleUnassignFamilyMember(i)}>Change</button>
+                                </div>
+                              ) : (
+                                <div className="group-start-trip-search">
+                                  <input
+                                    type="text"
+                                    placeholder="Search by name or email…"
+                                    value={tripMemberSearchTerm[i] || ""}
+                                    onChange={(e) => handleFamilyMemberSearchChange(i, e.target.value)}
+                                  />
+                                  {tripMemberSearchResults[i]?.length > 0 && (
+                                    <div className="group-start-trip-results">
+                                      {tripMemberSearchResults[i].map((m) => (
+                                        <div key={m.uid} className="group-start-trip-result" onClick={() => handleAssignFamilyMember(i, m)}>
+                                          {m.displayName || m.email}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="book-btn secondary"
+                                    style={{ marginTop: 6 }}
+                                    onClick={() => handleAssignFamilyMemberByEmail(i, tripMemberSearchTerm[i] || "")}
+                                  >
+                                    Add by exact email
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <button className="book-btn" style={{ marginTop: 16 }} onClick={() => handleCreateTripFromGroup(g)}>
+                            Let's get this Trip Started 🎉
+                          </button>
+                          {startTripStatus && <p className="pref-hint" style={{ marginTop: 10 }}>{startTripStatus}</p>}
                         </div>
                       )}
                     </div>
@@ -2063,107 +2230,9 @@ export default function App() {
               </div>
             )}
 
-            <div className="packing-box" style={{ marginTop: 0 }}>
-              <div className="panel-head" style={{ marginBottom: 16 }}>
-                <div>
-                  <h2 style={{ fontSize: "1.25rem" }}>Start a new group trip</h2>
-                  <p style={{ fontSize: "0.85rem" }}>Uses your current itinerary from the Itinerary tab. Invite friends to RSVP — when the group disagrees, the concierge proposes something everyone's more likely to like.</p>
-                </div>
-              </div>
-
-              <div className="pref-label">Search TripAmi members</div>
-              <input
-                type="text"
-                placeholder="Search by name or email…"
-                value={memberSearchTerm}
-                onChange={(e) => setMemberSearchTerm(e.target.value)}
-                style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem", marginTop: 10 }}
-              />
-              {memberSearching && <p className="pref-hint">Searching…</p>}
-              {memberSearchResults.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  {memberSearchResults.map((m) => (
-                    <div key={m.uid} className="friend-row">
-                      <div className="friend-email">{m.displayName || m.email}</div>
-                      <button
-                        className="book-btn"
-                        style={{ margin: 0 }}
-                        onClick={() => handleAddSearchedMember(m)}
-                        disabled={friends.some((f) => f.uid === m.uid)}
-                      >
-                        {friends.some((f) => f.uid === m.uid) ? "Already added" : "Add"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {memberSearchTerm.trim().length >= 2 && !memberSearching && memberSearchResults.length === 0 && (
-                <p className="pref-hint">No matching TripAmi accounts found.</p>
-              )}
-
-              <div className="pref-label" style={{ marginTop: 24 }}>Add someone to invite</div>
-              <form onSubmit={handleAddFriend} style={{ display: "flex", gap: 8, marginTop: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                <input
-                  type="email"
-                  placeholder="friend@email.com"
-                  value={addFriendEmail}
-                  onChange={(e) => setAddFriendEmail(e.target.value)}
-                  style={{ flex: 1, minWidth: 220, border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem" }}
-                  required
-                />
-                <button className="book-btn" type="submit" style={{ margin: 0 }}>Add</button>
-              </form>
-              {addFriendStatus && <p className="pref-hint">{addFriendStatus}</p>}
-              {contactPickerSupported && (
-                <>
-                  <button className="book-btn secondary" onClick={handleFindContactsOnTripAmi} disabled={checkingContacts} style={{ marginTop: 6 }}>
-                    {checkingContacts ? "Checking…" : "Find contacts on TripAmi"}
-                  </button>
-                  <p className="pref-hint" style={{ marginTop: 6 }}>
-                    Matches your phone contacts against TripAmi accounts — hashed on your device, never sent as plain text.
-                  </p>
-                </>
-              )}
-              {contactCheckStatus && <p className="pref-hint">{contactCheckStatus}</p>}
-              {contactMatches.length > 0 && (
-                <div style={{ marginTop: 10, marginBottom: 10 }}>
-                  {contactMatches.map((m) => (
-                    <div key={m.uid} className="friend-row">
-                      <div className="friend-email">{m.displayName || m.email}</div>
-                      <button className="book-btn" style={{ margin: 0 }} onClick={() => handleAddContactMatch(m)}>Add friend</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {itineraryPlan.length === 0 ? (
-                <p className="pref-hint" style={{ marginTop: 24 }}>Build an itinerary first (Itinerary tab), then come back here to turn it into a group trip.</p>
-              ) : friends.length === 0 ? (
-                <p className="pref-hint" style={{ marginTop: 24 }}>Add a friend above to start inviting people to this trip.</p>
-              ) : (
-                <>
-                  <div className="pref-label" style={{ marginTop: 24 }}>Invite friends to this trip</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10, marginBottom: 16 }}>
-                    {friends.map((f) => (
-                      <label key={f.uid} className="packing-item">
-                        <input type="checkbox" checked={inviteSelection.includes(f.uid)} onChange={() => toggleInviteFriend(f.uid)} />
-                        <span>{f.displayName || f.email}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <button className="book-btn" onClick={handleStartGroupTrip}>Start group trip</button>
-                </>
-              )}
-              {groupTripStatus && <p className="pref-hint" style={{ marginTop: 10 }}>{groupTripStatus}</p>}
-              {groupTripUrl && (
-                <div className="share-link-box">
-                  <input readOnly value={groupTripUrl} onFocus={(e) => e.target.select()} />
-                  <a href={groupTripUrl} target="_blank" rel="noreferrer" className="book-btn secondary" style={{ margin: 0 }}>
-                    Open →
-                  </a>
-                </div>
-              )}
-            </div>
+            {myGroupTrips.length === 0 && (
+              <p className="pref-hint">No group trips yet — click "Start Trip" on any roster in My Groups above to create one.</p>
+            )}
           </>
         )}
       </section>

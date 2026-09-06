@@ -277,6 +277,11 @@ export default function GroupTripPage({ tripId }) {
             Sign in on the main site to RSVP, post updates, or share your location — you can still view everything without signing in.
           </div>
         )}
+        {trip.rosterSnapshot && (
+          <p className="pref-hint" style={{ marginTop: 10 }}>
+            From "{trip.rosterSnapshot.name}" — {trip.rosterSnapshot.total} total ({trip.rosterSnapshot.adults} adults, {trip.rosterSnapshot.children} children), {trip.memberIds?.length || 1} chatting here.
+          </p>
+        )}
         {user && !trip.booked && (
           <button className="book-btn secondary" style={{ marginTop: 16 }} onClick={handleMarkBooked} disabled={markingBooked}>
             {markingBooked ? "Marking…" : "Mark this trip as booked ✓"}

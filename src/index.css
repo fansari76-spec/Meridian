@@ -160,6 +160,16 @@ section.panel:last-of-type{border-bottom:none;}
 .group-view-detail{padding:4px 0 16px 4px; display:flex; flex-direction:column; gap:6px;}
 .group-view-family{display:flex; gap:10px; font-size:0.88rem; color:#3A3F49;}
 .group-view-family strong{min-width:110px;}
+.group-start-trip-panel{background:var(--paper-dim); border-radius:14px; padding:18px 20px; margin:4px 0 16px;}
+.group-start-trip-family{padding:12px 0; border-bottom:1px solid var(--line);}
+.group-start-trip-family:last-of-type{border-bottom:none;}
+.group-start-trip-family-label{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; font-size:0.9rem;}
+.group-start-trip-assigned{display:flex; align-items:center; gap:10px; font-size:0.88rem; color:var(--indigo-deep); font-weight:600;}
+.group-start-trip-assigned button{border:none; background:none; color:var(--indigo); font-weight:700; text-decoration:underline; cursor:pointer; font-size:0.82rem;}
+.group-start-trip-search input{width:100%; max-width:360px; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-size:0.88rem; background:var(--white);}
+.group-start-trip-results{margin-top:6px; background:var(--white); border-radius:10px; border:1px solid var(--line); max-width:360px; overflow:hidden;}
+.group-start-trip-result{padding:9px 12px; font-size:0.86rem; cursor:pointer;}
+.group-start-trip-result:hover{background:var(--paper-dim);}
 .reminder-banner{background:var(--gold-light); border-radius:12px; padding:14px 16px; margin-bottom:20px; font-size:0.9rem;}
 .group-chat-thread{display:flex; flex-direction:column; gap:10px; max-height:360px; overflow-y:auto; padding:4px 2px;}
 .group-chat-msg{max-width:70%; align-self:flex-start;}

@@ -11,7 +11,7 @@
 import { db, isFirebaseConfigured } from "./firebase";
 import { doc, addDoc, collection, onSnapshot, updateDoc, serverTimestamp, query, where, orderBy, getDocs } from "firebase/firestore";
 
-export async function createGroupTrip({ ownerId, ownerName, origin, destination, departDate, returnDate, travelers, itineraryPlan, memberIds = [], memberNames = {} }) {
+export async function createGroupTrip({ ownerId, ownerName, origin, destination, departDate, returnDate, travelers, itineraryPlan, memberIds = [], memberNames = {}, rosterSnapshot = null }) {
   if (!isFirebaseConfigured) throw new Error("Sign in and connect Firebase to start a group trip.");
   const docRef = await addDoc(collection(db, "groupTrips"), {
     ownerId,
@@ -23,6 +23,8 @@ export async function createGroupTrip({ ownerId, ownerName, origin, destination,
     itineraryPlan,
     memberIds: [ownerId, ...memberIds],
     memberNames: { [ownerId]: ownerName, ...memberNames },
+    rosterSnapshot, // optional: the My Groups roster this trip was started from — { name, families, adults, children, total }
+    booked: false,
     rsvps: {}, // { "dayNumber-activityIndex": { [userId]: "going" | "not_going" | "maybe" } }
     createdAt: serverTimestamp(),
   });
