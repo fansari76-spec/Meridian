@@ -15,7 +15,7 @@ export async function sendPing({ fromUserId, fromName, toUserId, message }) {
   if (!message?.trim()) throw new Error("Write a message first.");
   await addDoc(collection(db, "pings"), {
     fromUserId,
-    fromName: fromName || "A Meridian friend",
+    fromName: fromName || "A TripAmi friend",
     toUserId,
     message: message.trim(),
     createdAt: serverTimestamp(),

@@ -3,7 +3,7 @@
 // A "travel group" is a named roster of people you're planning a trip
 // for — e.g. "Thailand Trip" made up of 3 families with different
 // adult/children counts and ages. Unlike Group Trips (which invites
-// real Meridian friends to RSVP/vote), a travel group doesn't require
+// real TripAmi friends to RSVP/vote), a travel group doesn't require
 // anyone to have an account — it's just a headcount + ages you define
 // yourself, so you can search flights (and later, once a real hotel
 // booking API is connected, hotel rooms) for the whole party at once.

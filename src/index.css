@@ -19,7 +19,7 @@ button{font-family:inherit; cursor:pointer;}
 header.top{position:sticky; top:0; z-index:50; background:rgba(255,255,255,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line);}
 .topbar{display:flex; align-items:center; justify-content:space-between; padding:18px 28px; max-width:1120px; margin:0 auto;}
 .brand{display:flex; align-items:center; gap:10px; font-family:'Sora',sans-serif; font-weight:600; font-size:1.3rem;}
-.brand-mark{width:30px; height:30px; border-radius:50%; background:conic-gradient(from 210deg, var(--indigo), var(--teal), var(--gold), var(--indigo)); flex-shrink:0;}
+.brand-logo-img{height:36px; width:auto; display:block;}
 nav.tabs{display:flex; gap:4px; background:var(--paper-dim); padding:4px; border-radius:999px;}
 nav.tabs button{border:none; background:transparent; padding:9px 16px; border-radius:999px; font-size:0.88rem; font-weight:600; color:var(--ink); opacity:0.55;}
 nav.tabs button.active{opacity:1; background:var(--indigo); color:var(--paper);}

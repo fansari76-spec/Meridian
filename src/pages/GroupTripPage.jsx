@@ -193,7 +193,7 @@ export default function GroupTripPage({ tripId }) {
       <header className="top">
         <div className="topbar">
           <a href="/" className="brand" style={{ textDecoration: "none" }}>
-            <span className="brand-mark" />Meridian
+            <img src="/logo.png" alt="TripAmi" className="brand-logo-img" />
           </a>
           <span className="signin-btn" style={{ background: "var(--teal)", borderColor: "var(--teal)" }}>
             {memberCount} traveler{memberCount === 1 ? "" : "s"} in this group
@@ -202,7 +202,7 @@ export default function GroupTripPage({ tripId }) {
       </header>
 
       <section className="hero wrap" style={{ paddingBottom: 20 }}>
-        <div className="eyebrow-plain">A group trip on Meridian</div>
+        <div className="eyebrow-plain">A group trip on TripAmi</div>
         <h1>{trip.destination} — group plan</h1>
         <p className="lede">{trip.origin} → {trip.destination} · {trip.departDate} to {trip.returnDate}</p>
         {!user && (
@@ -356,7 +356,7 @@ export default function GroupTripPage({ tripId }) {
       </section>
 
       <footer>
-        Planned with Meridian — <a href="/" style={{ color: "var(--teal)" }}>plan your own trip</a>.
+        Planned with TripAmi — <a href="/" style={{ color: "var(--teal)" }}>plan your own trip</a>.
       </footer>
     </>
   );

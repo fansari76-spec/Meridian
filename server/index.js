@@ -48,5 +48,5 @@ app.listen(PORT, () => {
     process.env.GOOGLE_PLACES_API_KEY ? "stays:LIVE" : "stays:demo",
     process.env.ANTHROPIC_API_KEY ? "itinerary:LIVE" : "itinerary:demo",
   ];
-  console.log(`Meridian API listening on http://localhost:${PORT} — ${flags.join(", ")}`);
+  console.log(`TripAmi API listening on http://localhost:${PORT} — ${flags.join(", ")}`);
 });

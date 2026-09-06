@@ -1,4 +1,4 @@
-# Meridian — full app
+# TripAmi — full app
 
 This is a complete, runnable app: React frontend + Express backend,
 covering sign-in, flight search, hotel/stay browsing, a live budget
@@ -18,7 +18,7 @@ cd server
 npm install
 npm run dev
 ```
-You should see: `Meridian API listening on http://localhost:4000 — mode: DEMO`
+You should see: `TripAmi API listening on http://localhost:4000 — mode: DEMO`
 
 **Terminal 2 — frontend:**
 ```bash
@@ -39,7 +39,21 @@ shows a clear "demo mode" note instead of crashing.
    API key from the dashboard (no approval wait — test mode is
    instant and returns realistic offers).
 2. Create `server/.env` (copy `.env.example`), set `DUFFEL_API_KEY=`.
-3. Restart the backend — the console will now say `mode: LIVE`.
+3. Restart the backend — the console will now say `flights:LIVE`.
+4. **Note:** test-mode prices are still not real. To get real, current
+   fares, activate your Duffel account to live mode from the dashboard
+   (requires identity + payment verification), then use a
+   `duffel_live_` key instead.
+
+### Real hotel listings (Google Places)
+1. Go to [console.cloud.google.com](https://console.cloud.google.com), create a project, enable the **Places API**, create an API key under Credentials — instant, no approval wait.
+2. Add `GOOGLE_PLACES_API_KEY=` to `server/.env`.
+3. Restart the backend — `stays:LIVE`. You'll get real hotel names, addresses, ratings, and photos. Note: Places doesn't expose real nightly rates or booking, so prices shown are an estimate based on Google's price-level bucket — for real bookable rates, the next step is Booking.com's Affiliate API.
+
+### AI-generated itineraries (Claude)
+1. Get an API key at [console.anthropic.com](https://console.anthropic.com).
+2. Add `ANTHROPIC_API_KEY=` to `server/.env`.
+3. Restart the backend — `itinerary:LIVE`. The itinerary tab now generates a real, destination-specific plan instead of picking from templates.
 
 ### Real sign-in + saved trips (Firebase)
 1. Create a project at [console.firebase.google.com](https://console.firebase.google.com) (free).

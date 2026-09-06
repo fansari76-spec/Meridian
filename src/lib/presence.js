@@ -5,7 +5,7 @@
 // expiry — anyone checking a friend's presence sees nothing once it
 // expires or they've turned it off. This is intentionally foreground-
 // only (no background tracking); a native app is what would extend
-// this to work when Meridian isn't actively open.
+// this to work when TripAmi isn't actively open.
 
 import { db, isFirebaseConfigured } from "./firebase";
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from "firebase/firestore";

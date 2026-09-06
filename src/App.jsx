@@ -578,7 +578,7 @@ export default function App() {
     });
   }, []);
 
-  // Debounced live search for inviting existing Meridian subscribers
+  // Debounced live search for inviting existing TripAmi subscribers
   // to a group trip — searches as the user types, no submit needed.
   useEffect(() => {
     if (memberSearchTerm.trim().length < 2) {
@@ -916,7 +916,7 @@ export default function App() {
     try {
       const found = await findUserByEmail(addFriendEmail);
       if (!found) {
-        setAddFriendStatus("No Meridian account found with that email yet.");
+        setAddFriendStatus("No TripAmi account found with that email yet.");
         return;
       }
       if (found.uid === user.uid) {
@@ -939,9 +939,9 @@ export default function App() {
 
   // Uses the Contact Picker API (currently Android Chrome only — no
   // browser has this on iOS) to check which of the user's actual
-  // phone contacts have Meridian accounts, WITHOUT ever sending their
+  // phone contacts have TripAmi accounts, WITHOUT ever sending their
   // raw email addresses anywhere. Each one is hashed on-device first.
-  async function handleFindContactsOnMeridian() {
+  async function handleFindContactsOnTripAmi() {
     if (!("contacts" in navigator && "ContactsManager" in window)) {
       setContactCheckStatus(
         "Your browser doesn't support contact matching yet — this currently only works on Android Chrome. Add friends by email instead for now."
@@ -965,8 +965,8 @@ export default function App() {
       setContactMatches(newMatches);
       setContactCheckStatus(
         newMatches.length
-          ? `Found ${newMatches.length} of your contacts on Meridian.`
-          : "None of the selected contacts have Meridian accounts yet."
+          ? `Found ${newMatches.length} of your contacts on TripAmi.`
+          : "None of the selected contacts have TripAmi accounts yet."
       );
     } catch (err) {
       setContactCheckStatus(err.message?.includes("cancel") ? null : err.message || "Couldn't check contacts.");
@@ -1263,7 +1263,7 @@ export default function App() {
     <>
       <header className="top">
         <div className="topbar">
-          <div className="brand"><span className="brand-mark" />Meridian</div>
+          <div className="brand"><img src="/logo.png" alt="TripAmi" className="brand-logo-img" /></div>
           <nav className="tabs">
             {TABS.map((t) => (
               <button key={t.id} className={activeTab === t.id ? "active" : ""} onClick={() => setActiveTab(t.id)}>
@@ -1880,7 +1880,7 @@ export default function App() {
                 <div>
                   <h2 style={{ fontSize: "1.25rem" }}>My Groups</h2>
                   <p style={{ fontSize: "0.85rem" }}>
-                    Define a named roster of people traveling together — multiple families, each with their own adult count and children's ages — without anyone needing a Meridian account. Save it once, then use it to set the traveler count for any search.
+                    Define a named roster of people traveling together — multiple families, each with their own adult count and children's ages — without anyone needing a TripAmi account. Save it once, then use it to set the traveler count for any search.
                   </p>
                 </div>
               </div>
@@ -2008,7 +2008,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="pref-label">Search Meridian members</div>
+              <div className="pref-label">Search TripAmi members</div>
               <input
                 type="text"
                 placeholder="Search by name or email…"
@@ -2035,7 +2035,7 @@ export default function App() {
                 </div>
               )}
               {memberSearchTerm.trim().length >= 2 && !memberSearching && memberSearchResults.length === 0 && (
-                <p className="pref-hint">No matching Meridian accounts found.</p>
+                <p className="pref-hint">No matching TripAmi accounts found.</p>
               )}
 
               <div className="pref-label" style={{ marginTop: 24 }}>Add someone to invite</div>
@@ -2053,11 +2053,11 @@ export default function App() {
               {addFriendStatus && <p className="pref-hint">{addFriendStatus}</p>}
               {contactPickerSupported && (
                 <>
-                  <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts} style={{ marginTop: 6 }}>
-                    {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
+                  <button className="book-btn secondary" onClick={handleFindContactsOnTripAmi} disabled={checkingContacts} style={{ marginTop: 6 }}>
+                    {checkingContacts ? "Checking…" : "Find contacts on TripAmi"}
                   </button>
                   <p className="pref-hint" style={{ marginTop: 6 }}>
-                    Matches your phone contacts against Meridian accounts — hashed on your device, never sent as plain text.
+                    Matches your phone contacts against TripAmi accounts — hashed on your device, never sent as plain text.
                   </p>
                 </>
               )}
@@ -2182,7 +2182,7 @@ export default function App() {
         <div className="panel-head">
           <div>
             <h2>Nearby friends</h2>
-            <p>See which of your Meridian friends are around right now and send them a real message — never marked "read" unless they choose to reply.</p>
+            <p>See which of your TripAmi friends are around right now and send them a real message — never marked "read" unless they choose to reply.</p>
           </div>
         </div>
 
@@ -2191,7 +2191,7 @@ export default function App() {
         ) : (
           <>
             <div className="nearby-note">
-              This works while Meridian is open in your browser — you and a friend both opt in, and it checks your location right now. A native app version would let this work in the background without either of you having the app open.
+              This works while TripAmi is open in your browser — you and a friend both opt in, and it checks your location right now. A native app version would let this work in the background without either of you having the app open.
             </div>
 
             <div className="nearby-toggle-row">
@@ -2220,17 +2220,17 @@ export default function App() {
                 <button className="book-btn" type="submit" style={{ margin: 0 }}>Add friend</button>
               </form>
               {addFriendStatus && <p className="pref-hint">{addFriendStatus}</p>}
-              <p className="pref-hint">They need a Meridian account already — invite them to sign up first if not found.</p>
+              <p className="pref-hint">They need a TripAmi account already — invite them to sign up first if not found.</p>
             </div>
 
             {contactPickerSupported && (
               <div style={{ marginTop: 32 }}>
-                <div className="pref-label">Find contacts already on Meridian</div>
+                <div className="pref-label">Find contacts already on TripAmi</div>
                 <p className="pref-hint" style={{ marginTop: -4, marginBottom: 10 }}>
-                  Checks your phone contacts against Meridian accounts — your contacts' info is hashed on your device and never sent anywhere in plain text.
+                  Checks your phone contacts against TripAmi accounts — your contacts' info is hashed on your device and never sent anywhere in plain text.
                 </p>
-                <button className="book-btn secondary" onClick={handleFindContactsOnMeridian} disabled={checkingContacts}>
-                  {checkingContacts ? "Checking…" : "Find contacts on Meridian"}
+                <button className="book-btn secondary" onClick={handleFindContactsOnTripAmi} disabled={checkingContacts}>
+                  {checkingContacts ? "Checking…" : "Find contacts on TripAmi"}
                 </button>
                 {contactCheckStatus && <p className="pref-hint">{contactCheckStatus}</p>}
                 {contactMatches.length > 0 && (
@@ -2367,14 +2367,14 @@ export default function App() {
             <div className="panel-head">
               <div>
                 <h2>Your account</h2>
-                <p>Profile, preferences, and everything tied to your Meridian account.</p>
+                <p>Profile, preferences, and everything tied to your TripAmi account.</p>
               </div>
             </div>
 
             <div className="account-card">
               <div className="account-avatar">{(user.displayName || user.email || "?").charAt(0).toUpperCase()}</div>
               <div>
-                <div className="account-name">{user.displayName || "Meridian traveler"}</div>
+                <div className="account-name">{user.displayName || "TripAmi traveler"}</div>
                 <div className="account-email">{user.email}</div>
               </div>
             </div>
@@ -2460,7 +2460,7 @@ export default function App() {
                 <div className="account-item-body">
                   <p className="pref-hint">
                     You're signed in via {user.providerData?.[0]?.providerId?.includes("google") ? "Google" : user.providerData?.[0]?.providerId?.includes("apple") ? "Apple" : "your email provider"}.
-                    Your password (if any) is managed by them, not Meridian — there's nothing to change here.
+                    Your password (if any) is managed by them, not TripAmi — there's nothing to change here.
                   </p>
                 </div>
               </details>
@@ -2473,7 +2473,7 @@ export default function App() {
                   <span className="account-item-chevron">›</span>
                 </summary>
                 <div className="account-item-body">
-                  <p className="pref-hint">Meridian is free to plan on — there's no subscription or payment on file, because nothing is charged yet.</p>
+                  <p className="pref-hint">TripAmi is free to plan on — there's no subscription or payment on file, because nothing is charged yet.</p>
                 </div>
               </details>
             </div>
@@ -2483,7 +2483,7 @@ export default function App() {
         )}
       </section>
 
-      <footer>Meridian — {isFirebaseConfigured ? "connected to your Firebase project" : "running in demo mode"}.</footer>
+      <footer>TripAmi — {isFirebaseConfigured ? "connected to your Firebase project" : "running in demo mode"}.</footer>
     </>
   );
 }

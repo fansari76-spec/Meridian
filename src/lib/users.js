@@ -7,7 +7,7 @@
 //    is an intentional, specific action (not scanning a whole
 //    contact list).
 //
-// 2. "Find contacts on Meridian" — matches against a device's full
+// 2. "Find contacts on TripAmi" — matches against a device's full
 //    contact list. For this, we NEVER store or query plain emails —
 //    only a SHA-256 hash, computed on-device, so the server never
 //    sees anyone's real contact info, including for the person doing
@@ -44,7 +44,7 @@ export async function findUserByEmail(email) {
 
 /**
  * Given a list of already-hashed contact identifiers (computed
- * on-device, never raw), finds which of them belong to real Meridian
+ * on-device, never raw), finds which of them belong to real TripAmi
  * accounts. Firestore's `in` operator caps at 10 values per query, so
  * this chunks larger contact lists automatically.
  */
@@ -64,7 +64,7 @@ export async function findUsersByEmailHashes(hashes) {
 }
 
 /**
- * Searches registered Meridian accounts by the start of their email
+ * Searches registered TripAmi accounts by the start of their email
  * or display name — powers the "recommendations while typing" search
  * used when inviting people to a group trip. Firestore doesn't do
  * substring search, so this is a prefix match (searching "jo" matches
