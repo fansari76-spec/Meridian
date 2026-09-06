@@ -17,7 +17,7 @@ export const RITUAL_CHECKLISTS = {
     {
       id: "tawaf",
       name: "Tawaf al-Umrah — circling the Ka'aba",
-      counter: { target: 7, unit: "circuit", avgDistanceMeters: 350 },
+      counter: { target: 7, unit: "circuit", avgDistanceMeters: 350, startLabel: "Tawaf" },
       duas: [
         {
           occasion: "Each time you align with the Black Stone",
@@ -38,7 +38,7 @@ export const RITUAL_CHECKLISTS = {
     {
       id: "sai",
       name: "Sa'i — between Safa and Marwah",
-      counter: { target: 7, unit: "pass", avgDistanceMeters: 450 },
+      counter: { target: 7, unit: "pass", avgDistanceMeters: 450, startLabel: "Sa'i" },
       duas: [
         {
           occasion: "Approaching and atop Safa and Marwah (each end)",
@@ -60,7 +60,7 @@ export const RITUAL_CHECKLISTS = {
     {
       id: "kora",
       name: "Circumambulation (kora) of the stupa or temple",
-      counter: { target: 3, unit: "circuit", avgDistanceMeters: 120 },
+      counter: { target: 3, unit: "circuit", avgDistanceMeters: 120, startLabel: "Kora" },
       note: "Walk clockwise. Three circuits is traditional; some pilgrims do 108 — adjust the target for your own practice.",
     },
     { id: "offering", name: "Offering (butter lamp, incense, or flowers)" },
@@ -81,7 +81,7 @@ export const RITUAL_CHECKLISTS = {
     {
       id: "parikrama",
       name: "Parikrama — circumambulation of the temple or ghat",
-      counter: { target: 3, unit: "circuit", avgDistanceMeters: 100 },
+      counter: { target: 3, unit: "circuit", avgDistanceMeters: 100, startLabel: "Parikrama" },
       note: "Three circuits is common practice; some traditions call for more — adjust the target for your own practice.",
     },
     { id: "aarti", name: "Attend an aarti ceremony" },

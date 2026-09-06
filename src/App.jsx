@@ -217,7 +217,7 @@ function RitualCounterCard({ step, lifetimeCount, onComplete }) {
       {tracker.permissionDenied && <p className="pref-hint">Motion access was denied — you can still count manually below.</p>}
 
       {!tracker.tracking && !tracker.completed && (
-        <button className="book-btn" onClick={tracker.start}>Start {step.counter.unit === "circuit" ? "Tawaf" : "tracking"}</button>
+        <button className="book-btn" onClick={tracker.start}>Start {step.counter.startLabel || step.name}</button>
       )}
 
       {(tracker.tracking || tracker.circuit > 0) && !tracker.completed && (
