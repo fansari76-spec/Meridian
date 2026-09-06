@@ -9,7 +9,7 @@
 // secret header so it can't be triggered by random internet traffic.
 
 import express from "express";
-import { getFirebaseAdmin, isFirebaseAdminConfigured } from "../lib/firebaseAdmin.js";
+import { getFirebaseAdminFirestore, isFirebaseAdminConfigured } from "../lib/firebaseAdmin.js";
 import { searchOneDatePairLive, searchOneDatePairMock, isLiveMode } from "./flights.js";
 
 const router = express.Router();
@@ -27,8 +27,7 @@ router.post("/check-prices", async (req, res) => {
     return res.status(500).json({ error: "RESEND_API_KEY / INVITE_FROM_EMAIL aren't set." });
   }
 
-  const admin = getFirebaseAdmin();
-  const db = admin.firestore();
+  const db = getFirebaseAdminFirestore();
   const tripsSnap = await db.collection("trips").get();
 
   let checked = 0;
