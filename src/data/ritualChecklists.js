@@ -18,35 +18,14 @@ export const RITUAL_CHECKLISTS = {
       id: "tawaf",
       name: "Tawaf al-Umrah — circling the Ka'aba",
       counter: { target: 7, unit: "circuit", avgDistanceMeters: 350 },
-      duas: [
-        {
-          occasion: "Each time you align with the Black Stone",
-          action: "Say \"Allahu Akbar\" (Takbir)",
-          reference: "Sahih al-Bukhari 1613",
-          link: "https://sunnah.com/bukhari:1613",
-        },
-        {
-          occasion: "Between the Yemeni Corner and the Black Stone",
-          action: "\"Rabbana atina fid-dunya hasanah...\" — widely practiced, but not Bukhari/Muslim",
-          reference: "Sunan Abu Dawud 1892 (graded Hasan/sound by Al-Albani)",
-          link: "https://sunnah.com/abudawud:1892",
-          note: "Included for completeness since it's near-universal in practice — its source is a different, still-authentic collection, not Bukhari or Muslim.",
-        },
-      ],
+      duaLink: "https://sunnah.com/search?q=tawaf+dua",
       note: "Each circuit starts and ends at the Black Stone (Hajar al-Aswad).",
     },
     {
       id: "sai",
       name: "Sa'i — between Safa and Marwah",
       counter: { target: 7, unit: "pass", avgDistanceMeters: 450 },
-      duas: [
-        {
-          occasion: "Approaching and atop Safa and Marwah (each end)",
-          action: "The dua and dhikr facing the Qibla, from the Hadith of Jabir describing the Prophet's ﷺ Hajj",
-          reference: "Sahih Muslim, Book of Hajj",
-          link: "https://sunnah.com/hisn:236",
-        },
-      ],
+      duaLink: "https://sunnah.com/search?q=sai+safa+marwah+dua",
       note: "Starting at Safa counts as pass 1; ending at Marwah completes pass 7.",
     },
     {

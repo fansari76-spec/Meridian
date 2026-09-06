@@ -256,12 +256,6 @@ section.panel:last-of-type{border-bottom:none;}
 .ritual-card-head{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; font-size:0.95rem; margin-bottom:6px;}
 .ritual-lifetime{font-size:0.8rem; color:#5A5F68; font-weight:400;}
 .ritual-dua-link{font-size:0.82rem; color:var(--indigo); font-weight:700; white-space:nowrap;}
-.ritual-duas{margin-top:10px; display:flex; flex-direction:column; gap:10px;}
-.ritual-dua-entry{background:var(--white); border-radius:10px; padding:12px 14px;}
-.ritual-dua-occasion{font-size:0.78rem; font-weight:700; color:#5A5F68; text-transform:uppercase; letter-spacing:0.02em;}
-.ritual-dua-action{font-size:0.9rem; margin-top:4px; color:var(--ink);}
-.ritual-dua-note{font-size:0.8rem; color:#5A5F68; margin-top:6px; font-style:italic;}
-.ritual-dua-entry .ritual-dua-link{display:inline-block; margin-top:8px;}
 .ritual-live{margin-top:12px; text-align:center; background:var(--white); border-radius:12px; padding:20px;}
 .ritual-live-count{font-family:'Sora',sans-serif; font-size:2.4rem; font-weight:700; color:var(--indigo);}
 .ritual-live-sub{font-size:0.82rem; color:#5A5F68; margin-top:4px;}

@@ -197,21 +197,13 @@ function RitualCounterCard({ step, lifetimeCount, onComplete }) {
           <strong>{step.name}</strong>
           {lifetimeCount > 0 && <span className="ritual-lifetime"> · completed {lifetimeCount}× before</span>}
         </div>
+        {step.duaLink && (
+          <a href={step.duaLink} target="_blank" rel="noreferrer" className="ritual-dua-link">
+            Recommended du'as →
+          </a>
+        )}
       </div>
       {step.note && <p className="pref-hint">{step.note}</p>}
-
-      {step.duas?.length > 0 && (
-        <div className="ritual-duas">
-          {step.duas.map((d, i) => (
-            <div key={i} className="ritual-dua-entry">
-              <div className="ritual-dua-occasion">{d.occasion}</div>
-              <div className="ritual-dua-action">{d.action}</div>
-              {d.note && <div className="ritual-dua-note">{d.note}</div>}
-              <a href={d.link} target="_blank" rel="noreferrer" className="ritual-dua-link">{d.reference} →</a>
-            </div>
-          ))}
-        </div>
-      )}
 
       {tracker.unsupported && <p className="pref-hint">Your device doesn't support motion tracking — use the manual counter below instead.</p>}
       {tracker.permissionDenied && <p className="pref-hint">Motion access was denied — you can still count manually below.</p>}
