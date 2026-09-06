@@ -10,6 +10,7 @@ import { useFlightSearch } from "./lib/useFlightSearch.js";
 import { useStaySearch } from "./lib/useStaySearch.js";
 import { useItinerary } from "./lib/useItinerary.js";
 import { useImportBooking } from "./lib/useImportBooking.js";
+import { useDestinationRecommender } from "./lib/useDestinationRecommender.js";
 import { useConcierge } from "./lib/useConcierge.js";
 import { usePacking } from "./lib/usePacking.js";
 import { useBriefing } from "./lib/useBriefing.js";
@@ -452,6 +453,12 @@ export default function App() {
   const [importFlightFile, setImportFlightFile] = useState(null);
   const [importHotelFile, setImportHotelFile] = useState(null);
   const [importResultStatus, setImportResultStatus] = useState("");
+  const [showDestinationRecommender, setShowDestinationRecommender] = useState(false);
+  const [recBudgetStyle, setRecBudgetStyle] = useState("");
+  const [recMonth, setRecMonth] = useState("");
+  const [recRegion, setRecRegion] = useState("Anywhere");
+  const [destinationResults, setDestinationResults] = useState(null);
+  const [destinationRecStatus, setDestinationRecStatus] = useState("");
 
   const handleSavePreferences = async () => {
     if (!user) {
@@ -487,6 +494,34 @@ export default function App() {
     setImportResultStatus(`Got it${trip.destination ? ` — planning your trip to ${trip.destination}` : ""}. Building your itinerary now…`);
     setShowImportBooking(false);
     setActiveTab("itinerary");
+  };
+
+  const handleGetDestinationIdeas = async () => {
+    setDestinationRecStatus("Thinking of some real options…");
+    setDestinationResults(null);
+    const data = await recommendDestinations({
+      budgetStyle: recBudgetStyle || prefs.budgetStyle || null,
+      month: recMonth || null,
+      region: recRegion,
+      interests,
+      cuisine,
+      travelParty: prefs.travelParty || null,
+      pace: prefs.pace || null,
+      dietaryRestrictions: prefs.dietaryRestrictions || [],
+    });
+    if (!data) {
+      setDestinationRecStatus(destinationRecError || "Couldn't get destination ideas — try again in a moment.");
+      return;
+    }
+    setDestinationResults(data.destinations);
+    setDestinationRecStatus(data.usedAI ? "" : (data.warning || "Showing general picks — connect ANTHROPIC_API_KEY for personalized suggestions."));
+  };
+
+  const handleUseRecommendedDestination = (dest) => {
+    setForm((f) => ({ ...f, destination: dest.airportCode }));
+    setOriginSource("manual");
+    setShowDestinationRecommender(false);
+    setDestinationResults(null);
   };
 
   const [originSource, setOriginSource] = useState("default"); // "default" | "geo" | "homeBase" | "manual" — tracks whether the origin field can still be auto-set
@@ -543,6 +578,7 @@ export default function App() {
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock, resolvedLocation: staysResolvedLocation } = useStaySearch();
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI, warning: itineraryWarning } = useItinerary();
   const { importBooking, loading: importBookingLoading, error: importBookingError } = useImportBooking();
+  const { recommend: recommendDestinations, loading: destinationRecLoading, error: destinationRecError } = useDestinationRecommender();
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
   const { generate: generatePacking, loading: packingLoading, categories: packingCategories, usedAI: packingUsedAI, warning: packingWarning } = usePacking();
   const [packedItems, setPackedItems] = useState({}); // "category::item" -> bool
@@ -1514,6 +1550,68 @@ export default function App() {
       </RotatingHero>
 
       <div className="search-dock wrap" style={{ display: activeTab === "search" ? "block" : "none" }}>
+        <div style={{ marginBottom: 16 }}>
+          {!showDestinationRecommender ? (
+            <button type="button" className="book-btn secondary" onClick={() => setShowDestinationRecommender(true)}>
+              Not sure where to go? Get AI ideas →
+            </button>
+          ) : (
+            <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 20, marginBottom: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>Let Ami suggest some destinations</div>
+              <p className="pref-hint" style={{ marginBottom: 16 }}>
+                Uses your saved preferences (interests, cuisine, pace) plus a few quick questions below to suggest real, verified destinations — no need to already know where you're going.
+              </p>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+                <div className="field">
+                  <label>Budget</label>
+                  <select value={recBudgetStyle} onChange={(e) => setRecBudgetStyle(e.target.value)}>
+                    <option value="">No preference</option>
+                    <option value="Budget-conscious">Budget-conscious</option>
+                    <option value="Mid-range">Mid-range</option>
+                    <option value="Luxury">Luxury</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>When (optional)</label>
+                  <input type="text" placeholder="e.g. November, or flexible" value={recMonth} onChange={(e) => setRecMonth(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Region</label>
+                  <select value={recRegion} onChange={(e) => setRecRegion(e.target.value)}>
+                    <option value="Anywhere">Anywhere</option>
+                    <option value="Domestic (US) only">Domestic (US) only</option>
+                    <option value="International only">International only</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+                <button type="button" className="book-btn" onClick={handleGetDestinationIdeas} disabled={destinationRecLoading}>
+                  {destinationRecLoading ? "Thinking…" : "Get suggestions"}
+                </button>
+                <button type="button" className="book-btn secondary" onClick={() => { setShowDestinationRecommender(false); setDestinationResults(null); setDestinationRecStatus(""); }}>
+                  Cancel
+                </button>
+              </div>
+              {destinationRecStatus && <p className="pref-hint" style={{ marginBottom: 16 }}>{destinationRecStatus}</p>}
+              {destinationResults && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+                  {destinationResults.map((dest) => (
+                    <div key={dest.name} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 14 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{dest.name} <span style={{ fontWeight: 400, color: "#5A5F68" }}>{dest.costTier}</span></div>
+                      <div style={{ fontSize: "0.85rem", marginBottom: 6 }}>{dest.matchReason}</div>
+                      <div style={{ fontSize: "0.8rem", color: "#5A5F68", marginBottom: 8 }}>Best time: {dest.bestTimeToVisit}</div>
+                      <div style={{ fontSize: "0.8rem", color: "#5A5F68", marginBottom: 12 }}>{dest.highlights?.join(" · ")}</div>
+                      <button type="button" className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleUseRecommendedDestination(dest)}>
+                        Plan this trip →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <form className="search-card" onSubmit={handleSearch}>
           <div className="search-row search-row--centered">
             <div className="field">
