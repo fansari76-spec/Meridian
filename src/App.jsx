@@ -1627,6 +1627,19 @@ export default function App() {
         )}
 
         <div style={{ marginTop: 44 }}>
+          <div className="panel-head" style={{ marginBottom: 16 }}>
+            <div><h2>Food, matched to how you eat</h2><p>Pick one — restaurant picks in your itinerary adjust automatically.</p></div>
+          </div>
+          <div className="chip-grid">
+            {CUISINE_OPTIONS.map((c) => (
+              <div key={c} className={`chip ${cuisine === c ? "active" : ""}`} onClick={() => setCuisine(c)} style={{ cursor: "pointer" }}>
+                {c}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 44 }}>
           <div className="panel-head" style={{ marginBottom: 20 }}>
             <div>
               <h2>Places to stay</h2>
@@ -1674,18 +1687,6 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ marginTop: 44 }}>
-          <div className="panel-head" style={{ marginBottom: 16 }}>
-            <div><h2>Food, matched to how you eat</h2><p>Pick one — restaurant picks in your itinerary adjust automatically.</p></div>
-          </div>
-          <div className="chip-grid">
-            {CUISINE_OPTIONS.map((c) => (
-              <div key={c} className={`chip ${cuisine === c ? "active" : ""}`} onClick={() => setCuisine(c)} style={{ cursor: "pointer" }}>
-                {c}
-              </div>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* ===================== PREFERENCES ===================== */}
