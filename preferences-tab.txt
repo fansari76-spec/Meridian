@@ -1,0 +1,225 @@
+      <section className="panel wrap" style={{ display: activeTab === "preferences" ? "block" : "none" }}>
+        <div className="panel-head">
+          <div>
+            <h2>Tell us how you like to travel</h2>
+            <p>Every question here is optional — skip anything you'd rather not answer. The more you share, the more we can tailor your flights, stays, cuisine, and itinerary to you.</p>
+          </div>
+        </div>
+
+        <div className="pref-question">
+          <div className="pref-label">Home base airport</div>
+          <input
+            type="text"
+            placeholder="e.g. JFK"
+            value={prefs.homeAirport}
+            onChange={(e) => setPrefs({ ...prefs, homeAirport: e.target.value.toUpperCase().slice(0, 3) })}
+            maxLength={3}
+            style={{ width: 100, border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem", textTransform: "uppercase" }}
+          />
+          <p className="pref-hint" style={{ marginTop: 6 }}>
+            We try your device location first for the "From" field on search; this is the backup if that's unavailable or denied. You can always type over either one manually.
+          </p>
+        </div>
+
+        <div className="prefs-progress">{answeredCount(prefs)} of {PREFERENCE_QUESTIONS.length + 2} answered</div>
+
+        {PREFERENCE_QUESTIONS.map((q) => (
+          <div key={q.key} className="pref-question">
+            <div className="pref-label">{q.label}</div>
+            <div className="chip-grid">
+              {q.options.map((opt) => (
+                <div
+                  key={opt}
+                  className={`chip ${prefs[q.key] === opt ? "active" : ""}`}
+                  onClick={() => toggleSingleAnswer(prefs, setPrefs, q.key, opt)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {opt}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <div className="pref-question">
+          <div className="pref-label">Any dietary restrictions? (select all that apply)</div>
+          <div className="chip-grid">
+            {DIETARY_OPTIONS.map((opt) => (
+              <div
+                key={opt}
+                className={`chip ${prefs.dietaryRestrictions.includes(opt) ? "active" : ""}`}
+                onClick={() => toggleMultiAnswer(setPrefs, "dietaryRestrictions", opt)}
+                style={{ cursor: "pointer" }}
+              >
+                {opt}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pref-question">
+          <div className="pref-label">Favorite cuisines — click in order, favorite first (optional)</div>
+          <div className="chip-grid">
+            {CUISINE_TYPE_OPTIONS.map((opt) => {
+              const rank = prefs.favoriteCuisines.indexOf(opt);
+              return (
+                <div
+                  key={opt}
+                  className={`chip ${rank > -1 ? "active" : ""}`}
+                  onClick={() => toggleMultiAnswer(setPrefs, "favoriteCuisines", opt)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {rank > -1 && <span className="chip-rank">{rank + 1}</span>}
+                  {opt}
+                </div>
+              );
+            })}
+          </div>
+          {prefs.favoriteCuisines.length > 0 && (
+            <div className="pref-hint">In order: {prefs.favoriteCuisines.join(" → ")}</div>
+          )}
+        </div>
+
+        <div className="pref-question">
+          <div className="pref-label">Any accessibility needs we should plan around? (optional)</div>
+          <textarea
+            className="pref-textarea"
+            placeholder="e.g. wheelchair-accessible venues, limited walking distance…"
+            value={prefs.accessibilityNotes}
+            onChange={(e) => setPrefs({ ...prefs, accessibilityNotes: e.target.value })}
+          />
+        </div>
+
+        <div className="pref-question">
+          <div className="pref-label">Anything else we should know? (optional)</div>
+          <textarea
+            className="pref-textarea"
+            placeholder="e.g. traveling with a toddler, celebrating a milestone, avoiding early mornings…"
+            value={prefs.otherNotes}
+            onChange={(e) => setPrefs({ ...prefs, otherNotes: e.target.value })}
+          />
+        </div>
+
+        <button className="book-btn" onClick={() => setActiveTab("itinerary")}>See your updated itinerary →</button>
+      </section>
+
+      {/* ===================== BUDGET ===================== */}
+      <section className="panel wrap" style={{ display: activeTab === "budget" ? "block" : "none" }}>
+        <div className="panel-head">
+          <div><h2>Full trip budget</h2><p>Built live from your flight, stay, and trip length above.</p></div>
+        </div>
+        <div className="budget-grid">
+          <div>
+            {budget.lines.map((line) => (
+              <div className="budget-line" key={line.key}>
+                <div className="budget-cat"><span className="cat-dot" style={{ background: line.color }} />{line.label}</div>
+                <div className="budget-amt">${line.amount.toLocaleString()}</div>
+              </div>
+            ))}
+            {cheapestFlex && cheapestFlex.cheapestTotal < (selectedFlight?.totalAmount ?? Infinity) && (
+              <div className="save-callout">
+                <span style={{ fontSize: "1.1rem" }}>💡</span>
+                <div>
+                  Shift your departure to <strong>{cheapestFlex.departDate}</strong> and save roughly{" "}
+                  <strong>${Math.round((selectedFlight?.totalAmount ?? 0) - cheapestFlex.cheapestTotal)}</strong> per traveler on airfare.
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
+              <button className="book-btn" style={{ marginTop: 0 }} onClick={handleSaveTrip}>
+                Save this trip
+              </button>
+              <button className="book-btn secondary" style={{ marginTop: 0 }} onClick={handleShareTrip}>
+                Share this trip →
+              </button>
+            </div>
+            {saveStatus && <p style={{ fontSize: "0.82rem", color: "#5A5F68", marginTop: 8 }}>{saveStatus}</p>}
+            {shareStatus && <p style={{ fontSize: "0.82rem", color: "#5A5F68", marginTop: 8 }}>{shareStatus}</p>}
+            {shareUrl && (
+              <div className="share-link-box">
+                <input readOnly value={shareUrl} onFocus={(e) => e.target.select()} />
+                <a href={shareUrl} target="_blank" rel="noreferrer" className="book-btn secondary" style={{ margin: 0 }}>
+                  Open →
+                </a>
+              </div>
+            )}
+          </div>
+          <div className="budget-total">
+            <div className="label">Estimated total, {form.travelers} traveler{form.travelers > 1 ? "s" : ""}</div>
+            <div className="num">${budget.total.toLocaleString()}</div>
+            <div className="per-person">≈ ${budget.perPerson.toLocaleString()} per person · {nights} nights</div>
+            <div className="bar">
+              {budget.lines.map((line) => (
+                <span key={line.key} style={{ width: `${(line.amount / budget.total) * 100}%`, background: line.color }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===================== ITINERARY ===================== */}
+      <section className="panel wrap" style={{ display: activeTab === "itinerary" ? "block" : "none" }}>
+        <div className="panel-head">
+          <div><h2>Your day-by-day plan</h2><p>Toggle what you like — the plan below rebuilds automatically, and its cost feeds straight into your budget.</p></div>
+        </div>
+
+        {weatherLoading && <p className="loading-line" style={{ marginBottom: 16 }}><span className="spinner" />Checking the forecast…</p>}
+        {weatherAvailable && weatherDays?.length > 0 && (
+          <div className="weather-strip">
+            {weatherDays.map((d) => (
+              <div key={d.date} className={`weather-day ${d.precipitationMm > 5 ? "weather-day--rain" : ""}`}>
+                <div className="weather-date">{formatShortDate(d.date)}</div>
+                <div className="weather-icon">{weatherIcon(d.weatherCode)}</div>
+                <div className="weather-temp">{Math.round(d.tempMaxC)}° / {Math.round(d.tempMinC)}°C</div>
+                {d.precipitationMm > 5 && <div className="weather-rain-note">{d.precipitationMm.toFixed(0)}mm rain</div>}
+              </div>
+            ))}
+            {weatherDays.some((d) => d.precipitationMm > 5) && (
+              <button className="book-btn secondary weather-adjust-btn" onClick={handleAskConciergeAboutWeather} disabled={conciergeLoading}>
+                Ask Ami to adjust for weather
+              </button>
+            )}
+          </div>
+        )}
+        {weatherAvailable === false && weatherReason && (
+          <p className="pref-hint" style={{ marginBottom: 20 }}>{weatherReason}</p>
+        )}
+
+        <div className="chip-grid" style={{ marginBottom: 30 }}>
+          {INTEREST_OPTIONS.map((opt) => (
+            <div key={opt.id} className={`chip ${interests.includes(opt.id) ? "active" : ""}`} onClick={() => toggleInterest(opt.id)} style={{ cursor: "pointer" }}>
+              {opt.label}
+            </div>
+          ))}
+        </div>
+        {!usedAI && itineraryPlan.length > 0 && (
+          <div className="demo-note" style={{ marginBottom: 20 }}>
+            {itineraryWarning || "Template plan — add ANTHROPIC_API_KEY in server/.env for AI-generated, destination-specific itineraries. See README.md."}
+          </div>
+        )}
+        {itineraryLoading && <p className="loading-line" style={{ marginBottom: 16 }}><span className="spinner" />Building your {form.destination} itinerary…</p>}
+        <div className="itinerary">
+          {itineraryPlan.map((day) => {
+            const dayTotalPerPerson = (day.activities || []).reduce((sum, a) => sum + (Number(a.cost) || 0), 0);
+            const groups = groupByPeriod(day.activities || []);
+            return (
+              <div className="day-block" key={day.dayNumber}>
+                <div className="day-title">
+                  Day {day.dayNumber}
+                  {dayTotalPerPerson > 0 && (
+                    <span className="sub"> — ~${dayTotalPerPerson} per person planned</span>
+                  )}
+                </div>
+                {groups.map(([period, acts]) => (
+                  <div key={period} className="period-group">
+                    {period !== "unscheduled" && <div className="period-label">{PERIOD_LABELS[period] || period}</div>}
+                    {acts.map((a, i) => (
+                      <div className="activity" key={i}>
+                        <div className="activity-time">{a.time}</div>
+                        <div style={{ flex: 1 }}>
+                          <div className="activity-name-row">
+                            <div className="activity-name">
+                              {a.category === "food" ? "🍽️ " : a.category === "activity" ? "🎟️ " : ""}
+                              {a.name}
+                            </div>
+                            {Number(a.cost) > 0 ? (

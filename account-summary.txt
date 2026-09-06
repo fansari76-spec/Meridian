@@ -1,0 +1,51 @@
+        ) : (
+          <>
+            <div className="panel-head">
+              <div>
+                <h2>Your account</h2>
+                <p>Profile, preferences, and everything tied to your TripAmi account.</p>
+              </div>
+            </div>
+
+            <div className="account-card">
+              <div className="account-avatar">{(user.displayName || user.email || "?").charAt(0).toUpperCase()}</div>
+              <div>
+                <div className="account-name">{user.displayName || "TripAmi traveler"}</div>
+                <div className="account-email">{user.email}</div>
+              </div>
+            </div>
+
+            <div className="account-accordion">
+              <details className="account-item" open>
+                <summary>
+                  <span className="account-item-icon">🧭</span>
+                  <span className="account-item-title">Trip preferences</span>
+                  <span className="account-item-preview">{answeredCount(prefs) === 0 ? "Not set" : `${answeredCount(prefs)} answered`}</span>
+                  <span className="account-item-chevron">›</span>
+                </summary>
+                <div className="account-item-body">
+                  {answeredCount(prefs) === 0 ? (
+                    <p className="pref-hint">Nothing set yet — answer a few questions on the Preferences tab to personalize your trips.</p>
+                  ) : (
+                    <ul className="account-prefs-list">
+                      {prefs.travelParty && <li><strong>Traveling as:</strong> {prefs.travelParty}</li>}
+                      {prefs.pace && <li><strong>Pace:</strong> {prefs.pace}</li>}
+                      {prefs.budgetStyle && <li><strong>Budget style:</strong> {prefs.budgetStyle}</li>}
+                      {prefs.stayType && <li><strong>Preferred stay:</strong> {prefs.stayType}</li>}
+                      {prefs.flightPriority && <li><strong>Flight priority:</strong> {prefs.flightPriority}</li>}
+                      {prefs.occasion && prefs.occasion !== "None" && <li><strong>Occasion:</strong> {prefs.occasion}</li>}
+                      {prefs.dietaryRestrictions?.length > 0 && <li><strong>Dietary:</strong> {prefs.dietaryRestrictions.join(", ")}</li>}
+                      {prefs.favoriteCuisines?.length > 0 && <li><strong>Favorite cuisines:</strong> {prefs.favoriteCuisines.join(" → ")}</li>}
+                    </ul>
+                  )}
+                  <button className="book-btn secondary" style={{ marginTop: 12 }} onClick={() => setActiveTab("preferences")}>
+                    Edit preferences →
+                  </button>
+                  <p className="pref-hint" style={{ marginTop: 8 }}>Saved to your account — these follow you across sessions and devices now.</p>
+                </div>
+              </details>
+
+              <details className="account-item">
+                <summary>
+                  <span className="account-item-icon">🧳</span>
+                  <span className="account-item-title">Saved trips</span>

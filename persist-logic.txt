@@ -1,0 +1,121 @@
+    const unsubInbox = subscribeToInbox(user.uid, setInbox);
+    const unsubSent = subscribeToSent(user.uid, setSentPings);
+    return () => {
+      unsubInbox();
+      unsubSent();
+    };
+  }, [user]);
+
+  // Persist preferences to the account, debounced, only once the
+  // initial load above has completed (avoids overwriting saved
+  // preferences with the blank defaults during that first render).
+  useEffect(() => {
+    if (!user || !prefsLoaded) return;
+    const timeout = setTimeout(() => savePreferences(user.uid, prefs), 800);
+    return () => clearTimeout(timeout);
+  }, [prefs, user, prefsLoaded]);
+
+  // If this page was opened via a "Duplicate this trip" link
+  // (?duplicate=<id>), pre-fill the search form and preferences from
+  // that shared trip so the visitor starts from a real starting point
+  // instead of a blank form.
+  useEffect(() => {
+    const dupId = new URLSearchParams(window.location.search).get("duplicate");
+    if (!dupId) return;
+    getSharedTrip(dupId).then((trip) => {
+      if (!trip) return;
+      setForm((f) => ({
+        ...f,
+        origin: trip.origin || f.origin,
+        destination: trip.destination || f.destination,
+        departDate: trip.departDate || f.departDate,
+        returnDate: trip.returnDate || f.returnDate,
+        travelers: trip.travelers || f.travelers,
+      }));
+      if (trip.interests) setInterests(trip.interests);
+      if (trip.cuisine) setCuisine(trip.cuisine);
+      if (trip.prefs) setPrefs((p) => ({ ...p, ...trip.prefs }));
+      setSaveStatus("Loaded from a shared trip — search above to get real flights and hotels for these dates.");
+      setActiveTab("itinerary");
+    });
+  }, []);
+
+  // Debounced live search for inviting existing TripAmi subscribers
+  // to a group trip — searches as the user types, no submit needed.
+  useEffect(() => {
+    if (memberSearchTerm.trim().length < 2) {
+      setMemberSearchResults([]);
+      return;
+    }
+    setMemberSearching(true);
+    const timeout = setTimeout(async () => {
+      const results = await searchUsersByPrefix(memberSearchTerm);
+      setMemberSearchResults(results.filter((r) => r.uid !== user?.uid));
+      setMemberSearching(false);
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [memberSearchTerm, user]);
+
+  // Default the "From" airport to wherever the traveler actually is,
+  // rather than a hardcoded city. Only runs once, and never overrides
+  // the field once the person has typed in it themselves (originSource
+  // becomes "manual" the moment they edit it).
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (originSource !== "default") return; // user already typed something, or a home airport already applied
+        const code = nearestAirportCode(pos.coords.latitude, pos.coords.longitude);
+        if (code) {
+          setForm((f) => ({ ...f, origin: code }));
+          setOriginSource("geo");
+        }
+      },
+      () => {
+        /* denied or unavailable — the home-base-airport effect below covers this */
+      },
+      { timeout: 5000, maximumAge: 3600000 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fallback: once preferences load, if geolocation didn't already set
+  // an origin and the person hasn't typed one manually, use their
+  // saved home base airport (set on the Account tab).
+  useEffect(() => {
+    if (!prefsLoaded || originSource !== "default") return;
+    if (prefs.homeAirport?.trim()) {
+      setForm((f) => ({ ...f, origin: prefs.homeAirport.trim().toUpperCase() }));
+      setOriginSource("homeBase");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefsLoaded]);
+
+  // Fetch stays once on load and whenever the destination or dates change.
+  useEffect(() => {
+    searchStays(form.destination, {
+      checkIn: form.departDate,
+      checkOut: form.returnDate,
+      travelers: form.travelers,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.destination, form.departDate, form.returnDate, form.travelers]);
+
+  // Weather is free (no API key), so fetch it eagerly whenever the
+  // destination or dates change — same trigger as the stays search.
+  useEffect(() => {
+    fetchForecast({ destination: form.destination, startDate: form.departDate, endDate: form.returnDate });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.destination, form.departDate, form.returnDate]);
+
+  // Regenerate the itinerary whenever destination, interests, cuisine,
+  // preferences, or trip length change — debounced slightly so rapid
+  // chip-toggling doesn't fire a request per click.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      generateItineraryAI({
+        destination: form.destination,
+        days: Math.min(nightsFromDates(form.departDate, form.returnDate), 5),
+        interests,
+        cuisine: cuisine || null,
+        faithTradition: selectedFaith?.name || null,

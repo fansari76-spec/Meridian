@@ -446,6 +446,22 @@ export default function App() {
     homeAirport: "",
   });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [prefsSaveStatus, setPrefsSaveStatus] = useState("");
+
+  const handleSavePreferences = async () => {
+    if (!user) {
+      setPrefsSaveStatus("Sign in to save your preferences across devices.");
+      return;
+    }
+    setPrefsSaveStatus("Saving…");
+    try {
+      await savePreferences(user.uid, prefs);
+      setPrefsSaveStatus("Saved ✓");
+    } catch (err) {
+      setPrefsSaveStatus("Couldn't save — check your connection and try again.");
+    }
+  };
+
   const [originSource, setOriginSource] = useState("default"); // "default" | "geo" | "homeBase" | "manual" — tracks whether the origin field can still be auto-set
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
@@ -1775,7 +1791,8 @@ export default function App() {
           />
         </div>
 
-        <button className="book-btn" onClick={() => setActiveTab("itinerary")}>See your updated itinerary →</button>
+        <button className="book-btn" onClick={handleSavePreferences}>Save preferences</button>
+{prefsSaveStatus && <p style={{ fontSize: "0.82rem", color: "#5A5F68", marginTop: 8 }}>{prefsSaveStatus}</p>}
       </section>
 
       {/* ===================== BUDGET ===================== */}
