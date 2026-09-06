@@ -7,6 +7,11 @@
 // was saved at trip-save time, and emails the owner via Resend if the
 // price has dropped by a meaningful amount. Protected by a shared
 // secret header so it can't be triggered by random internet traffic.
+//
+// The whole handler body is wrapped in try/catch so any unexpected
+// failure (bad data on one trip, a Firestore hiccup, etc.) comes back
+// as a real JSON error response instead of crashing the process into
+// a blank 502 — much easier to diagnose from the outside.
 
 import express from "express";
 import { getFirebaseAdminFirestore, isFirebaseAdminConfigured } from "../lib/firebaseAdmin.js";
@@ -16,50 +21,65 @@ const router = express.Router();
 const DROP_THRESHOLD_PERCENT = 5; // only alert on a real drop, not noise
 
 router.post("/check-prices", async (req, res) => {
-  const providedSecret = req.headers["x-cron-secret"];
-  if (!process.env.CRON_SECRET || providedSecret !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: "Unauthorized." });
-  }
-  if (!isFirebaseAdminConfigured()) {
-    return res.status(500).json({ error: "FIREBASE_SERVICE_ACCOUNT_KEY isn't set." });
-  }
-  if (!process.env.RESEND_API_KEY || !process.env.INVITE_FROM_EMAIL) {
-    return res.status(500).json({ error: "RESEND_API_KEY / INVITE_FROM_EMAIL aren't set." });
-  }
-
-  const db = getFirebaseAdminFirestore();
-  const tripsSnap = await db.collection("trips").get();
-
-  let checked = 0;
-  let alertsSent = 0;
-  const errors = [];
-
-  for (const doc of tripsSnap.docs) {
-    const trip = { id: doc.id, ...doc.data() };
-    checked++;
-    try {
-      const passengers = Array.from({ length: trip.travelers || 1 }, () => ({ type: "adult" }));
-      const searchParams = { origin: trip.origin, destination: trip.destination, departDate: trip.departDate, returnDate: trip.returnDate, passengers };
-      const result = isLiveMode() ? await searchOneDatePairLive(searchParams) : searchOneDatePairMock(searchParams);
-      const newPrice = result.cheapestTotal;
-      const oldPrice = trip.flightTotal;
-
-      await doc.ref.update({ lastCheckedAt: new Date().toISOString(), lastCheckedPrice: newPrice });
-
-      if (oldPrice && newPrice && newPrice < oldPrice * (1 - DROP_THRESHOLD_PERCENT / 100)) {
-        const userSnap = await db.collection("users").doc(trip.userId).get();
-        const email = userSnap.exists ? userSnap.data().email : null;
-        if (email) {
-          await sendPriceDropEmail({ to: email, trip, oldPrice, newPrice });
-          alertsSent++;
-        }
-      }
-    } catch (err) {
-      errors.push({ tripId: trip.id, error: err.message });
+  try {
+    const providedSecret = req.headers["x-cron-secret"];
+    if (!process.env.CRON_SECRET || providedSecret !== process.env.CRON_SECRET) {
+      return res.status(401).json({ error: "Unauthorized." });
     }
-  }
+    if (!isFirebaseAdminConfigured()) {
+      return res.status(500).json({ error: "FIREBASE_SERVICE_ACCOUNT_KEY isn't set." });
+    }
+    if (!process.env.RESEND_API_KEY || !process.env.INVITE_FROM_EMAIL) {
+      return res.status(500).json({ error: "RESEND_API_KEY / INVITE_FROM_EMAIL aren't set." });
+    }
 
-  res.json({ checked, alertsSent, errors });
+    const db = getFirebaseAdminFirestore();
+    const tripsSnap = await db.collection("trips").get();
+
+    let checked = 0;
+    let alertsSent = 0;
+    const errors = [];
+
+    for (const doc of tripsSnap.docs) {
+      const trip = { id: doc.id, ...doc.data() };
+      checked++;
+      try {
+        if (!trip.origin || !trip.destination || !trip.departDate || !trip.returnDate) {
+          errors.push({ tripId: trip.id, error: "Missing required fields, skipped." });
+          continue;
+        }
+        const passengers = Array.from({ length: trip.travelers || 1 }, () => ({ type: "adult" }));
+        const searchParams = { origin: trip.origin, destination: trip.destination, departDate: trip.departDate, returnDate: trip.returnDate, passengers };
+        const result = isLiveMode() ? await searchOneDatePairLive(searchParams) : searchOneDatePairMock(searchParams);
+        const newPrice = result.cheapestTotal;
+        const oldPrice = trip.flightTotal;
+
+        await doc.ref.update({ lastCheckedAt: new Date().toISOString(), lastCheckedPrice: newPrice });
+
+        if (oldPrice && newPrice && newPrice < oldPrice * (1 - DROP_THRESHOLD_PERCENT / 100)) {
+          if (!trip.userId) {
+            errors.push({ tripId: trip.id, error: "No userId on trip, can't look up email." });
+            continue;
+          }
+          const userSnap = await db.collection("users").doc(trip.userId).get();
+          const email = userSnap.exists ? userSnap.data().email : null;
+          if (email) {
+            await sendPriceDropEmail({ to: email, trip, oldPrice, newPrice });
+            alertsSent++;
+          } else {
+            errors.push({ tripId: trip.id, error: "No email found for this trip's user." });
+          }
+        }
+      } catch (err) {
+        errors.push({ tripId: trip.id, error: err.message });
+      }
+    }
+
+    return res.json({ checked, alertsSent, errors });
+  } catch (err) {
+    console.error("check-prices top-level error:", err);
+    return res.status(500).json({ error: err.message, stack: err.stack });
+  }
 });
 
 async function sendPriceDropEmail({ to, trip, oldPrice, newPrice }) {
