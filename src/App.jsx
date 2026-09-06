@@ -517,11 +517,19 @@ export default function App() {
     setDestinationRecStatus(data.usedAI ? "" : (data.warning || "Showing general picks — connect ANTHROPIC_API_KEY for personalized suggestions."));
   };
 
-  const handleUseRecommendedDestination = (dest) => {
-    setForm((f) => ({ ...f, destination: dest.airportCode }));
+  const handleUseRecommendedDestination = async (dest) => {
+    const updatedForm = { ...form, destination: dest.airportCode };
+    setForm(updatedForm);
     setOriginSource("manual");
     setShowDestinationRecommender(false);
     setDestinationResults(null);
+
+    const passengers = buildPassengersForSearch();
+    const data = await search({ ...updatedForm, passengers, travelers: passengers.length });
+    if (data?.primary?.offers?.length) {
+      setSelectedFlight(data.primary.offers[0]);
+      setSelectedFlexOffset(null);
+    }
   };
 
   const [originSource, setOriginSource] = useState("default"); // "default" | "geo" | "homeBase" | "manual" — tracks whether the origin field can still be auto-set
