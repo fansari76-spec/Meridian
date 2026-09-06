@@ -11,9 +11,10 @@
 // - "Resolve with concierge" for activities where RSVPs conflict.
 
 import { useEffect, useState } from "react";
-import { subscribeToGroupTrip, castRSVP, applyResolvedPlan } from "../lib/groupTrips.js";
+import { subscribeToGroupTrip, castRSVP, applyResolvedPlan, markGroupTripBooked } from "../lib/groupTrips.js";
 import { subscribeToGroupPosts, createGroupPost, markPostSeen, uploadGroupMedia } from "../lib/groupPosts.js";
 import { shareLocationInGroup, stopSharingLocationInGroup, subscribeToGroupLocations, distanceMiles, getBrowserLocation } from "../lib/groupLocation.js";
+import { sendGroupMessage, subscribeToGroupMessages } from "../lib/groupChat.js";
 import { subscribeToAuthChanges } from "../lib/firebase.js";
 import { useConcierge } from "../lib/useConcierge.js";
 
@@ -38,6 +39,44 @@ function activityKey(dayNumber, index) {
   return `${dayNumber}-${index}`;
 }
 
+// Parses times like "9:00a" / "7:30p" into a real Date, by combining
+// the trip's departure date with (dayNumber - 1) days offset. Used
+// only to show an in-app "starting soon" banner while this page is
+// open — this is not a push notification or email, since that needs
+// a background service this app doesn't have yet (see the note in the
+// UI itself).
+function activityDateTime(departDate, dayNumber, timeStr) {
+  if (!departDate || !timeStr) return null;
+  const match = /^(\d{1,2}):(\d{2})(a|p)$/i.exec(timeStr.trim());
+  if (!match) return null;
+  let hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  const isPM = match[3].toLowerCase() === "p";
+  if (isPM && hour !== 12) hour += 12;
+  if (!isPM && hour === 12) hour = 0;
+  const d = new Date(departDate);
+  d.setDate(d.getDate() + (dayNumber - 1));
+  d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
+function findUpcomingActivities(trip) {
+  if (!trip?.itineraryPlan) return [];
+  const now = new Date();
+  const upcoming = [];
+  for (const day of trip.itineraryPlan) {
+    for (const activity of day.activities || []) {
+      const when = activityDateTime(trip.departDate, day.dayNumber, activity.time);
+      if (!when) continue;
+      const hoursUntil = (when - now) / 3600000;
+      if (hoursUntil > 0 && hoursUntil <= 24) {
+        upcoming.push({ ...activity, dayNumber: day.dayNumber, when, hoursUntil });
+      }
+    }
+  }
+  return upcoming.sort((a, b) => a.when - b.when);
+}
+
 export default function GroupTripPage({ tripId }) {
   const [trip, setTrip] = useState(null);
   const [user, setUser] = useState(null);
@@ -54,6 +93,10 @@ export default function GroupTripPage({ tripId }) {
   const [sharingLocation, setSharingLocation] = useState(false);
   const [locationStatus, setLocationStatus] = useState(null);
 
+  const [messages, setMessages] = useState([]);
+  const [chatText, setChatText] = useState("");
+  const [markingBooked, setMarkingBooked] = useState(false);
+
   useEffect(() => subscribeToAuthChanges(setUser), []);
 
   useEffect(() => {
@@ -66,6 +109,20 @@ export default function GroupTripPage({ tripId }) {
 
   useEffect(() => subscribeToGroupPosts(tripId, setPosts), [tripId]);
   useEffect(() => subscribeToGroupLocations(tripId, setLocations), [tripId]);
+  useEffect(() => subscribeToGroupMessages(tripId, setMessages), [tripId]);
+
+  async function handleSendChat(e) {
+    e.preventDefault();
+    if (!user || !chatText.trim()) return;
+    await sendGroupMessage(tripId, { senderId: user.uid, senderName: user.displayName || user.email, text: chatText });
+    setChatText("");
+  }
+
+  async function handleMarkBooked() {
+    setMarkingBooked(true);
+    await markGroupTripBooked(tripId, true);
+    setMarkingBooked(false);
+  }
 
   // Mark all currently-visible posts as seen by this user — the
   // visible-seen-by list updates for the whole group in real time.
@@ -187,6 +244,7 @@ export default function GroupTripPage({ tripId }) {
 
   const myLocation = user ? locations[user.uid] : null;
   const otherSharing = Object.entries(locations).filter(([uid]) => uid !== user?.uid);
+  const upcomingActivities = findUpcomingActivities(trip);
 
   return (
     <>
@@ -203,12 +261,82 @@ export default function GroupTripPage({ tripId }) {
 
       <section className="hero wrap" style={{ paddingBottom: 20 }}>
         <div className="eyebrow-plain">A group trip on TripAmi</div>
-        <h1>{trip.destination} — group plan</h1>
-        <p className="lede">{trip.origin} → {trip.destination} · {trip.departDate} to {trip.returnDate}</p>
+        {trip.booked ? (
+          <>
+            <h1>🎉 All Aboard!</h1>
+            <p className="lede">{trip.origin} → {trip.destination} · {trip.departDate} to {trip.returnDate} — it's booked, this trip is happening.</p>
+          </>
+        ) : (
+          <>
+            <h1>{trip.destination} — group plan</h1>
+            <p className="lede">{trip.origin} → {trip.destination} · {trip.departDate} to {trip.returnDate}</p>
+          </>
+        )}
         {!user && (
           <div className="demo-note" style={{ marginTop: 16, maxWidth: 480 }}>
             Sign in on the main site to RSVP, post updates, or share your location — you can still view everything without signing in.
           </div>
+        )}
+        {user && !trip.booked && (
+          <button className="book-btn secondary" style={{ marginTop: 16 }} onClick={handleMarkBooked} disabled={markingBooked}>
+            {markingBooked ? "Marking…" : "Mark this trip as booked ✓"}
+          </button>
+        )}
+        {user && !trip.booked && (
+          <p className="pref-hint" style={{ marginTop: 8, maxWidth: 480 }}>
+            We can't detect a real booking automatically — flights and hotels are booked on the airline/hotel's own site, not here. This is a self-reported flag once everyone's actually checked out.
+          </p>
+        )}
+      </section>
+
+      {/* ---------- Chat & upcoming activity reminders ---------- */}
+      <section className="panel wrap" style={{ paddingBottom: 24 }}>
+        <div className="panel-head">
+          <div>
+            <h2 style={{ fontSize: "1.4rem" }}>Let's get this Trip Started 🎉</h2>
+            <p>Chat with the group, and see what's coming up next.</p>
+          </div>
+        </div>
+
+        {upcomingActivities.length > 0 && (
+          <div className="reminder-banner">
+            <strong>Coming up:</strong>{" "}
+            {upcomingActivities.map((a, i) => (
+              <span key={i}>
+                {a.name} {a.hoursUntil < 1.5 ? "starting soon" : `in about ${Math.round(a.hoursUntil)}h`}
+                {i < upcomingActivities.length - 1 ? " · " : ""}
+              </span>
+            ))}
+            <p className="pref-hint" style={{ marginTop: 6 }}>
+              This only shows while someone has this page open — real push or email reminders while the app is closed need backend infrastructure that isn't built yet.
+            </p>
+          </div>
+        )}
+
+        {user ? (
+          <>
+            <div className="group-chat-thread">
+              {messages.length === 0 && <p className="pref-hint">No messages yet — say hi to the group.</p>}
+              {messages.map((m) => (
+                <div key={m.id} className={`group-chat-msg ${m.senderId === user.uid ? "mine" : ""}`}>
+                  <div className="group-chat-sender">{m.senderId === user.uid ? "You" : m.senderName}</div>
+                  <div className="group-chat-bubble">{m.text}</div>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSendChat} style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <input
+                type="text"
+                placeholder="Message the group…"
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem" }}
+              />
+              <button className="book-btn" type="submit" style={{ margin: 0 }}>Send</button>
+            </form>
+          </>
+        ) : (
+          <p className="pref-hint">Sign in on the main site to join the chat.</p>
         )}
       </section>
 

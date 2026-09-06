@@ -40,6 +40,13 @@ export async function setTravelGroupActive(userId, groupId, active) {
   await updateDoc(doc(db, "users", userId, "travelGroups", groupId), { active });
 }
 
+export async function updateTravelGroup(userId, groupId, { name, families }) {
+  if (!isFirebaseConfigured) return null;
+  const totals = summarize(families);
+  await updateDoc(doc(db, "users", userId, "travelGroups", groupId), { name, families, ...totals });
+  return { id: groupId, name, families, ...totals };
+}
+
 export async function listTravelGroups(userId) {
   if (!isFirebaseConfigured || !userId) return [];
   const q = query(collection(db, "users", userId, "travelGroups"), orderBy("createdAt", "desc"));

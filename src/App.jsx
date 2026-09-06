@@ -21,7 +21,7 @@ import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
 import { setNearby, clearNearby, getPresence, distanceMiles, getBrowserLocation } from "./lib/presence.js";
 import { sendPing, subscribeToInbox, subscribeToSent, replyToPing, dismissPing } from "./lib/pings.js";
 import { createGroupTrip, listMyGroupTrips } from "./lib/groupTrips.js";
-import { createTravelGroup, listTravelGroups, deleteTravelGroup, setTravelGroupActive } from "./lib/travelGroups.js";
+import { createTravelGroup, listTravelGroups, deleteTravelGroup, setTravelGroupActive, updateTravelGroup } from "./lib/travelGroups.js";
 import { sha256Hex } from "./lib/hash.js";
 
 const TABS = [
@@ -476,6 +476,8 @@ export default function App() {
   const [groupNameInput, setGroupNameInput] = useState("");
   const [familyRows, setFamilyRows] = useState([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
   const [travelGroupStatus, setTravelGroupStatus] = useState(null);
+  const [editingGroupId, setEditingGroupId] = useState(null); // group currently loaded into the form for editing, or null for "new group"
+  const [viewingGroupId, setViewingGroupId] = useState(null); // group currently expanded to show its family breakdown
   const [selectedTravelGroupForSearch, setSelectedTravelGroupForSearch] = useState(null);
   const [contactMatches, setContactMatches] = useState([]);
   const [checkingContacts, setCheckingContacts] = useState(false);
@@ -1092,21 +1094,49 @@ export default function App() {
       setTravelGroupStatus("Give the group a name first, like \"Thailand Trip.\"");
       return;
     }
-    setTravelGroupStatus("Saving…");
+    setTravelGroupStatus(editingGroupId ? "Saving changes…" : "Saving…");
     try {
       const families = familyRows.map((f) => ({
         label: f.label || "Family",
         adults: Number(f.adults) || 0,
         childrenAges: parseAges(f.childrenAgesText),
       }));
-      const saved = await createTravelGroup(user.uid, { name: groupNameInput.trim(), families });
-      setMyTravelGroups((prev) => [saved, ...prev]);
+      if (editingGroupId) {
+        const updated = await updateTravelGroup(user.uid, editingGroupId, { name: groupNameInput.trim(), families });
+        setMyTravelGroups((prev) => prev.map((g) => (g.id === editingGroupId ? { ...g, ...updated } : g)));
+        setTravelGroupStatus(`"${updated.name}" updated — ${updated.total} people total.`);
+        setEditingGroupId(null);
+      } else {
+        const saved = await createTravelGroup(user.uid, { name: groupNameInput.trim(), families });
+        setMyTravelGroups((prev) => [saved, ...prev]);
+        setTravelGroupStatus(`"${saved.name}" saved — ${saved.total} people total.`);
+      }
       setGroupNameInput("");
       setFamilyRows([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
-      setTravelGroupStatus(`"${saved.name}" saved — ${saved.total} people total.`);
     } catch (err) {
       setTravelGroupStatus(err.message || "Couldn't save that group.");
     }
+  }
+
+  function handleEditGroup(group) {
+    setEditingGroupId(group.id);
+    setGroupNameInput(group.name);
+    setFamilyRows(
+      group.families.map((f) => ({
+        label: f.label,
+        adults: f.adults,
+        childrenAgesText: (f.childrenAges || []).join(", "),
+      }))
+    );
+    setViewingGroupId(null);
+    setTravelGroupStatus(null);
+  }
+
+  function handleCancelEditGroup() {
+    setEditingGroupId(null);
+    setGroupNameInput("");
+    setFamilyRows([{ label: "Family 1", adults: 2, childrenAgesText: "" }]);
+    setTravelGroupStatus(null);
   }
 
   async function handleDeleteTravelGroup(groupId) {
@@ -1888,33 +1918,62 @@ export default function App() {
               {myTravelGroups.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
                   {myTravelGroups.map((g) => (
-                    <div key={g.id} className="friend-row">
-                      <div>
-                        <div className="friend-email">
-                          {g.name}
-                          {g.active === false && <span className="tag" style={{ marginLeft: 8 }}>Inactive</span>}
+                    <div key={g.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                      <div className="friend-row" style={{ borderBottom: "none" }}>
+                        <div>
+                          <div className="friend-email">
+                            {g.name}
+                            {g.active === false && <span className="tag" style={{ marginLeft: 8 }}>Inactive</span>}
+                          </div>
+                          <div className="friend-offline">
+                            {g.families.length} {g.families.length === 1 ? "family" : "families"} · {g.adults} adults, {g.children} children · {g.total} total
+                          </div>
                         </div>
-                        <div className="friend-offline">
-                          {g.families.length} {g.families.length === 1 ? "family" : "families"} · {g.adults} adults, {g.children} children · {g.total} total
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => setViewingGroupId(viewingGroupId === g.id ? null : g.id)}>
+                            {viewingGroupId === g.id ? "Hide" : "View"}
+                          </button>
+                          <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleEditGroup(g)}>
+                            Edit
+                          </button>
+                          <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleToggleTravelGroupActive(g)}>
+                            {g.active === false ? "Set active" : "Set inactive"}
+                          </button>
+                          <button className="book-btn" style={{ margin: 0 }} onClick={() => handleUseTravelGroupForSearch(g)}>
+                            Use for search
+                          </button>
+                          <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleDeleteTravelGroup(g.id)}>
+                            Delete
+                          </button>
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleToggleTravelGroupActive(g)}>
-                          {g.active === false ? "Set active" : "Set inactive"}
-                        </button>
-                        <button className="book-btn" style={{ margin: 0 }} onClick={() => handleUseTravelGroupForSearch(g)}>
-                          Use for search
-                        </button>
-                        <button className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleDeleteTravelGroup(g.id)}>
-                          Delete
-                        </button>
-                      </div>
+                      {viewingGroupId === g.id && (
+                        <div className="group-view-detail">
+                          {g.families.map((f, i) => (
+                            <div key={i} className="group-view-family">
+                              <strong>{f.label}</strong>
+                              <span>
+                                {f.adults} adult{f.adults !== 1 ? "s" : ""}
+                                {f.childrenAges?.length > 0 && `, children aged ${f.childrenAges.join(", ")}`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
 
-              <div className="pref-label">New group</div>
+              <div className="pref-label">{editingGroupId ? "Edit group" : "New group"}</div>
+              {editingGroupId && (
+                <p className="pref-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+                  Editing "{myTravelGroups.find((g) => g.id === editingGroupId)?.name}" —{" "}
+                  <button type="button" onClick={handleCancelEditGroup} style={{ border: "none", background: "none", color: "var(--indigo)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", padding: 0 }}>
+                    cancel and start a new group instead
+                  </button>
+                </p>
+              )}
               <input
                 type="text"
                 placeholder='Group name — e.g. "Thailand Trip"'
@@ -1968,7 +2027,7 @@ export default function App() {
                 + Add another family
               </button>
               <div style={{ marginTop: 16 }}>
-                <button className="book-btn" onClick={handleSaveTravelGroup}>Save group</button>
+                <button className="book-btn" onClick={handleSaveTravelGroup}>{editingGroupId ? "Save changes" : "Save group"}</button>
               </div>
               {travelGroupStatus && <p className="pref-hint" style={{ marginTop: 10 }}>{travelGroupStatus}</p>}
               <p className="pref-hint" style={{ marginTop: 10 }}>
@@ -1979,7 +2038,9 @@ export default function App() {
             <div className="panel-head" style={{ marginBottom: 20 }}>
               <div>
                 <h2 style={{ fontSize: "1.4rem" }}>Trips</h2>
-                <p style={{ fontSize: "0.9rem" }}>Trips you're planning with friends — RSVPs, shared photos, and live location.</p>
+                <p style={{ fontSize: "0.9rem" }}>
+                  A shared, live hub for people who are actually coming on a specific trip with you — chat, RSVP per activity, shared photos, and live location. Different from "My Groups" above: that's just a headcount for searching flights, this is the real coordination space once you know who's in.
+                </p>
               </div>
             </div>
 
@@ -1989,7 +2050,9 @@ export default function App() {
                 {myGroupTrips.map((gt) => (
                   <div key={gt.id} className="friend-row">
                     <div>
-                      <div className="friend-email">{gt.origin} → {gt.destination}</div>
+                      <div className="friend-email">
+                        {gt.booked ? "🎉 All Aboard! — " : ""}{gt.origin} → {gt.destination}
+                      </div>
                       <div className="friend-offline">{gt.departDate} to {gt.returnDate} · {gt.memberIds?.length || 1} traveler{(gt.memberIds?.length || 1) > 1 ? "s" : ""}</div>
                     </div>
                     <a className="book-btn" style={{ margin: 0 }} href={`${window.location.origin}/group/${gt.id}`} target="_blank" rel="noreferrer">

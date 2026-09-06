@@ -52,6 +52,11 @@ export async function applyResolvedPlan(groupTripId, newPlan) {
   await updateDoc(doc(db, "groupTrips", groupTripId), { itineraryPlan: newPlan, rsvps: {} });
 }
 
+export async function markGroupTripBooked(groupTripId, booked = true) {
+  if (!isFirebaseConfigured) return;
+  await updateDoc(doc(db, "groupTrips", groupTripId), { booked });
+}
+
 export async function listMyGroupTrips(userId) {
   if (!isFirebaseConfigured || !userId) return [];
   const q = query(collection(db, "groupTrips"), where("memberIds", "array-contains", userId), orderBy("createdAt", "desc"));
