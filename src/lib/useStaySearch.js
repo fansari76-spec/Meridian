@@ -8,6 +8,7 @@ export function useStaySearch() {
   const [error, setError] = useState(null);
   const [stays, setStays] = useState(null);
   const [usedMockData, setUsedMockData] = useState(true);
+  const [resolvedLocation, setResolvedLocation] = useState(null);
 
   const search = useCallback(async (location, options = {}) => {
     setLoading(true);
@@ -22,6 +23,7 @@ export function useStaySearch() {
       const data = await res.json();
       setStays(data.stays);
       setUsedMockData(data.usedMockData);
+      setResolvedLocation(data.resolvedLocation || null);
       return data;
     } catch (err) {
       setError(err.message);
@@ -31,5 +33,5 @@ export function useStaySearch() {
     }
   }, []);
 
-  return { search, loading, error, stays, usedMockData };
+  return { search, loading, error, stays, usedMockData, resolvedLocation };
 }

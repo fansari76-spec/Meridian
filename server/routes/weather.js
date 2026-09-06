@@ -13,29 +13,9 @@
 //    text as a city name for anything not in the table.
 
 import express from "express";
+import { AIRPORT_TO_CITY } from "../lib/airportCities.js";
 
 const router = express.Router();
-
-// Common airport-code → city-name mappings so weather lookup works
-// out of the box for the destinations most likely to be searched.
-// Not exhaustive — anything missing falls back to trying the raw
-// destination text as a city name, which works fine if the person
-// typed a city instead of a code.
-const AIRPORT_TO_CITY = {
-  LIS: "Lisbon, Portugal", JFK: "New York, USA", LAX: "Los Angeles, USA",
-  LHR: "London, UK", CDG: "Paris, France", FCO: "Rome, Italy",
-  MAD: "Madrid, Spain", BCN: "Barcelona, Spain", AMS: "Amsterdam, Netherlands",
-  DXB: "Dubai, UAE", JED: "Jeddah, Saudi Arabia", MED: "Medina, Saudi Arabia",
-  RUH: "Riyadh, Saudi Arabia", IST: "Istanbul, Turkey", NRT: "Tokyo, Japan",
-  HND: "Tokyo, Japan", BKK: "Bangkok, Thailand", SIN: "Singapore",
-  HKG: "Hong Kong", ICN: "Seoul, South Korea", SYD: "Sydney, Australia",
-  DEL: "Delhi, India", BOM: "Mumbai, India", CAI: "Cairo, Egypt",
-  ATH: "Athens, Greece", VIE: "Vienna, Austria", BER: "Berlin, Germany",
-  MUC: "Munich, Germany", ZRH: "Zurich, Switzerland", CPT: "Cape Town, South Africa",
-  MEX: "Mexico City, Mexico", GRU: "Sao Paulo, Brazil", YYZ: "Toronto, Canada",
-  ORD: "Chicago, USA", SFO: "San Francisco, USA", MIA: "Miami, USA",
-  BOS: "Boston, USA", DFW: "Dallas, USA", SEA: "Seattle, USA",
-};
 
 router.get("/forecast", async (req, res) => {
   const { destination, startDate, endDate } = req.query;

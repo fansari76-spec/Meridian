@@ -17,6 +17,7 @@
 // fully clickable without setup.
 
 import express from "express";
+import { airportToCityName } from "../lib/airportCities.js";
 
 const router = express.Router();
 
@@ -43,7 +44,7 @@ router.post("/search", async (req, res) => {
 
   try {
     const stays = await searchRealHotels(location, { checkIn, checkOut, travelers });
-    res.json({ stays, usedMockData: false });
+    res.json({ stays, usedMockData: false, resolvedLocation: airportToCityName(location) });
   } catch (err) {
     console.error(err);
     res.status(502).json({ error: "Hotel search failed. Please try again." });
@@ -53,6 +54,7 @@ router.post("/search", async (req, res) => {
 async function searchRealHotels(location, { checkIn, checkOut, travelers }) {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   const url = `https://places.googleapis.com/v1/places:searchText`;
+  const cityName = airportToCityName(location);
 
   const response = await fetch(url, {
     method: "POST",
@@ -63,7 +65,7 @@ async function searchRealHotels(location, { checkIn, checkOut, travelers }) {
         "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.photos,places.googleMapsUri",
     },
     body: JSON.stringify({
-      textQuery: `hotels in ${location}`,
+      textQuery: `hotels in ${cityName}`,
       maxResultCount: 12,
     }),
   });
@@ -82,7 +84,7 @@ async function searchRealHotels(location, { checkIn, checkOut, travelers }) {
     ratingCount: place.userRatingCount ?? 0,
     price: estimatePriceFromLevel(place.priceLevel),
     photo: buildPhotoUrl(place.photos?.[0], key),
-    url: buildBookingComSearchUrl(place.displayName?.text, location, { checkIn, checkOut, travelers }),
+    url: buildBookingComSearchUrl(place.displayName?.text, cityName, { checkIn, checkOut, travelers }),
   }));
 }
 

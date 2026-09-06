@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import AuthButtons from "./components/AuthButtons.jsx";
 import { PILGRIMAGE_SITES, totalPilgrimageNights } from "./data/pilgrimage.js";
+import { nearestAirportCode } from "./data/majorAirports.js";
 import { calculateBudget } from "./lib/budget.js";
 import { useFlightSearch } from "./lib/useFlightSearch.js";
 import { useStaySearch } from "./lib/useStaySearch.js";
@@ -243,8 +244,10 @@ export default function App() {
     favoriteCuisines: [],
     accessibilityNotes: "",
     otherNotes: "",
+    homeAirport: "",
   });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [originSource, setOriginSource] = useState("default"); // "default" | "geo" | "homeBase" | "manual" — tracks whether the origin field can still be auto-set
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [saveStatus, setSaveStatus] = useState(null);
@@ -284,7 +287,7 @@ export default function App() {
 
   const { search, loading, error, results } = useFlightSearch();
   const { search: checkPrice } = useFlightSearch(); // separate instance so price-checks don't clobber the main search results
-  const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock } = useStaySearch();
+  const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock, resolvedLocation: staysResolvedLocation } = useStaySearch();
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI, warning: itineraryWarning } = useItinerary();
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
   const { generate: generatePacking, loading: packingLoading, categories: packingCategories, usedAI: packingUsedAI, warning: packingWarning } = usePacking();
@@ -390,6 +393,41 @@ export default function App() {
     return () => clearTimeout(timeout);
   }, [memberSearchTerm, user]);
 
+  // Default the "From" airport to wherever the traveler actually is,
+  // rather than a hardcoded city. Only runs once, and never overrides
+  // the field once the person has typed in it themselves (originSource
+  // becomes "manual" the moment they edit it).
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (originSource !== "default") return; // user already typed something, or a home airport already applied
+        const code = nearestAirportCode(pos.coords.latitude, pos.coords.longitude);
+        if (code) {
+          setForm((f) => ({ ...f, origin: code }));
+          setOriginSource("geo");
+        }
+      },
+      () => {
+        /* denied or unavailable — the home-base-airport effect below covers this */
+      },
+      { timeout: 5000, maximumAge: 3600000 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fallback: once preferences load, if geolocation didn't already set
+  // an origin and the person hasn't typed one manually, use their
+  // saved home base airport (set on the Account tab).
+  useEffect(() => {
+    if (!prefsLoaded || originSource !== "default") return;
+    if (prefs.homeAirport?.trim()) {
+      setForm((f) => ({ ...f, origin: prefs.homeAirport.trim().toUpperCase() }));
+      setOriginSource("homeBase");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefsLoaded]);
+
   // Fetch stays once on load and whenever the destination or dates change.
   useEffect(() => {
     searchStays(form.destination, {
@@ -470,8 +508,10 @@ export default function App() {
     const ret = new Date(depart);
     ret.setDate(ret.getDate() + nights);
     const toISODate = (d) => d.toISOString().slice(0, 10);
+    const departDate = toISODate(depart);
+    const returnDate = toISODate(ret);
 
-    setForm((f) => ({ ...f, destination: site.airportCode, departDate: toISODate(depart), returnDate: toISODate(ret) }));
+    setForm((f) => ({ ...f, destination: site.airportCode, departDate, returnDate }));
     if (site.suggestedDietary?.length) {
       setPrefs((p) => ({
         ...p,
@@ -480,6 +520,18 @@ export default function App() {
     }
     setSelectedFaith(site);
     setActiveTab("search");
+
+    // Flight search only runs on explicit submit (unlike stays/weather,
+    // which auto-refetch on any form change) — setForm above hasn't
+    // applied yet in this closure, so pass the computed values directly
+    // rather than reading stale `form` state.
+    const passengers = buildPassengersForSearch();
+    search({ origin: form.origin, destination: site.airportCode, departDate, returnDate, passengers, travelers: passengers.length }).then((data) => {
+      if (data?.primary?.offers?.length) {
+        setSelectedFlight(data.primary.offers[0]);
+        setSelectedFlexOffset(null);
+      }
+    });
   }
 
   async function handleSearch(e) {
@@ -1058,7 +1110,7 @@ export default function App() {
             <div className="field">
               <label>From → To (airport codes)</label>
               <div style={{ display: "flex", gap: 8 }}>
-                <input value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value.toUpperCase() })} maxLength={3} style={{ width: 70 }} />
+                <input value={form.origin} onChange={(e) => { setForm({ ...form, origin: e.target.value.toUpperCase() }); setOriginSource("manual"); }} maxLength={3} style={{ width: 70 }} />
                 <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value.toUpperCase() })} maxLength={3} style={{ width: 70 }} />
               </div>
             </div>
@@ -1197,7 +1249,7 @@ export default function App() {
           <div className="panel-head" style={{ marginBottom: 20 }}>
             <div>
               <h2>Places to stay</h2>
-              <p>{staysUsedMock ? "Demo listings across hotel, Airbnb, and Vrbo styles — sort to see ranking update live." : `Real hotels near ${form.destination}, ranked by rating — prices are estimates until a rates provider is connected.`}</p>
+              <p>{staysUsedMock ? "Demo listings across hotel, Airbnb, and Vrbo styles — sort to see ranking update live." : `Real hotels near ${staysResolvedLocation || form.destination}, ranked by rating — prices are estimates until a rates provider is connected.`}</p>
             </div>
           </div>
           <div className="filter-bar">
@@ -1263,6 +1315,22 @@ export default function App() {
             <p>Every question here is optional — skip anything you'd rather not answer. The more you share, the more we can tailor your flights, stays, cuisine, and itinerary to you.</p>
           </div>
         </div>
+
+        <div className="pref-question">
+          <div className="pref-label">Home base airport</div>
+          <input
+            type="text"
+            placeholder="e.g. JFK"
+            value={prefs.homeAirport}
+            onChange={(e) => setPrefs({ ...prefs, homeAirport: e.target.value.toUpperCase().slice(0, 3) })}
+            maxLength={3}
+            style={{ width: 100, border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: "0.9rem", textTransform: "uppercase" }}
+          />
+          <p className="pref-hint" style={{ marginTop: 6 }}>
+            We try your device location first for the "From" field on search; this is the backup if that's unavailable or denied. You can always type over either one manually.
+          </p>
+        </div>
+
         <div className="prefs-progress">{answeredCount(prefs)} of {PREFERENCE_QUESTIONS.length + 2} answered</div>
 
         {PREFERENCE_QUESTIONS.map((q) => (
