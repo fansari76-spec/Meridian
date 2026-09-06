@@ -550,15 +550,21 @@ export default function App() {
       voiceRecognition.stop();
       return;
     }
+    const baseText = tripDescription.trim();
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.interimResults = false;
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.onresult = (event) => {
-      const transcript = Array.from(event.results).map((r) => r[0].transcript).join(" ");
-      setTripDescription((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      let finalTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        finalTranscript += event.results[i][0].transcript + " ";
+      }
+      finalTranscript = finalTranscript.trim();
+      setTripDescription(baseText ? `${baseText} ${finalTranscript}` : finalTranscript);
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+      if (event.error === "no-speech") return;
       setConversationalParseStatus("Didn't catch that — try again, or just type.");
       setIsListening(false);
     };
