@@ -457,6 +457,7 @@ export default function App() {
   const [recBudgetStyle, setRecBudgetStyle] = useState("");
   const [recMonth, setRecMonth] = useState("");
   const [recRegion, setRecRegion] = useState("Anywhere");
+  const [recContinents, setRecContinents] = useState([]);
   const [destinationResults, setDestinationResults] = useState(null);
   const [destinationRecStatus, setDestinationRecStatus] = useState("");
 
@@ -503,6 +504,7 @@ export default function App() {
       budgetStyle: recBudgetStyle || prefs.budgetStyle || null,
       month: recMonth || null,
       region: recRegion,
+      continents: recContinents,
       interests,
       cuisine,
       travelParty: prefs.travelParty || null,
@@ -1593,6 +1595,23 @@ export default function App() {
                   </select>
                 </div>
               </div>
+              {recRegion !== "Domestic (US) only" && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", marginBottom: 6 }}>Narrow by continent (optional — leave blank for a global spread)</label>
+                  <div className="chip-grid">
+                    {['Europe', 'Asia', 'Latin America', 'Africa', 'Oceania', 'Middle East'].map((c) => (
+                      <div
+                        key={c}
+                        className={`chip ${recContinents.includes(c) ? "active" : ""}`}
+                        onClick={() => setRecContinents((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c])}
+                        style={{ cursor: "pointer" }}
+                      >
+                        {c}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                 <button type="button" className="book-btn" onClick={handleGetDestinationIdeas} disabled={destinationRecLoading}>
                   {destinationRecLoading ? "Thinking…" : "Get suggestions"}
@@ -1608,7 +1627,8 @@ export default function App() {
                     <div key={dest.name} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 14 }}>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>{dest.name} <span style={{ fontWeight: 400, color: "#5A5F68" }}>{dest.costTier}</span></div>
                       <div style={{ fontSize: "0.85rem", marginBottom: 6 }}>{dest.matchReason}</div>
-                      <div style={{ fontSize: "0.8rem", color: "#5A5F68", marginBottom: 8 }}>Best time: {dest.bestTimeToVisit}</div>
+                      <div style={{ fontSize: "0.8rem", color: "#5A5F68", marginBottom: 4 }}>Best time: {dest.bestTimeToVisit}</div>
+                      {dest.whyNow && <div style={{ fontSize: "0.8rem", color: "#12B3A0", marginBottom: 8 }}>Why now: {dest.whyNow}</div>}
                       <div style={{ fontSize: "0.8rem", color: "#5A5F68", marginBottom: 12 }}>{dest.highlights?.join(" · ")}</div>
                       <button type="button" className="book-btn secondary" style={{ margin: 0 }} onClick={() => handleUseRecommendedDestination(dest)}>
                         Plan this trip →

@@ -30,6 +30,7 @@ router.post("/recommend", async (req, res) => {
     budgetStyle = null,
     month = null,
     region = "Anywhere",
+    continents = [],
     interests = [],
     cuisine = null,
     travelParty = null,
@@ -39,7 +40,7 @@ router.post("/recommend", async (req, res) => {
 
   try {
     if (isLiveMode()) {
-      const destinations = await recommendWithClaude({ budgetStyle, month, region, interests, cuisine, travelParty, pace, dietaryRestrictions });
+      const destinations = await recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions });
       return res.json({ destinations, usedAI: true });
     }
     return res.json({ destinations: fallbackDestinations(), usedAI: false });
@@ -53,8 +54,8 @@ router.post("/recommend", async (req, res) => {
   }
 });
 
-async function recommendWithClaude({ budgetStyle, month, region, interests, cuisine, travelParty, pace, dietaryRestrictions }) {
-  const prompt = buildPrompt({ budgetStyle, month, region, interests, cuisine, travelParty, pace, dietaryRestrictions });
+async function recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions }) {
+  const prompt = buildPrompt({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions });
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -82,19 +83,27 @@ async function recommendWithClaude({ budgetStyle, month, region, interests, cuis
   return parsed;
 }
 
-function buildPrompt({ budgetStyle, month, region, interests, cuisine, travelParty, pace, dietaryRestrictions }) {
-  return `Recommend 4 real, specific travel destinations for someone who doesn't know where to go yet.
+function buildPrompt({ budgetStyle, month, region, continents = [], interests, cuisine, travelParty, pace, dietaryRestrictions }) {
+  const isDomestic = region === "Domestic (US) only";
+  const continentConstraint = !isDomestic && continents.length
+    ? `Only suggest destinations on these continents: ${continents.join(", ")}.`
+    : !isDomestic
+      ? `No continent restriction — actively spread the picks across at least 4 different continents/regions of the world. Do not cluster them in one part of the globe.`
+      : "";
+
+  return `Recommend 5-6 real, specific travel destinations for someone who doesn't know where to go yet.
 
 Budget style: ${budgetStyle || "no strong preference"}.
 Travel timing: ${month || "flexible, no specific month"}.
 Region preference: ${region}.
+${continentConstraint}
 Stated interests: ${interests.length ? interests.join(", ") : "no strong preference, suggest a good variety"}.
 Cuisine preference: ${cuisine || "none specified"}.
 ${travelParty ? `Traveling as: ${travelParty} — factor this into suitability.` : ""}
 ${pace ? `Preferred pace: ${pace}.` : ""}
 ${dietaryRestrictions?.length ? `Dietary restrictions to consider for food-culture fit: ${dietaryRestrictions.join(", ")}.` : ""}
 
-Use web search to verify: each destination's actual best-time-to-visit window makes sense for the stated travel timing (don't recommend somewhere in its rainy/off season without saying so), and that any specific claim about cost or climate is current and accurate. Do not invent specific prices — use only a rough cost tier.
+Use web search to verify facts, and prioritize TIMING, not just avoiding a bad season: for the stated travel timing, actively favor destinations that have a genuine, specific reason to visit right then — a festival, a weather sweet spot, shoulder-season pricing, a seasonal natural event (cherry blossoms, fall color, dry season, etc.) — over destinations that are merely "fine" then. If a destination is only mediocre for the stated timing, leave it out even if it would otherwise fit the other criteria. Do not invent specific prices — use only a rough cost tier.
 
 Respond with ONLY a JSON array (no markdown fences, no preamble), in this exact shape:
 [
@@ -103,20 +112,23 @@ Respond with ONLY a JSON array (no markdown fences, no preamble), in this exact 
     "airportCode": "3-letter IATA code of that city's main international airport, verified via search",
     "matchReason": "1-2 sentences on why this fits what they asked for, specific to their actual inputs, not generic.",
     "bestTimeToVisit": "Real, verified best-time-to-visit window for this destination.",
+    "whyNow": "1 short sentence on specifically why THIS time frame is a good one for this destination — the concrete seasonal reason, not a generic restatement of bestTimeToVisit.",
     "costTier": "$" | "$$" | "$$$",
     "highlights": ["short highlight 1", "short highlight 2", "short highlight 3"]
   }
 ]
 
-Make the 4 destinations genuinely varied from each other (different regions/continents/vibes), not 4 similar cities.`;
+Make the destinations genuinely varied from each other in vibe (not just location) — don't suggest 6 similar big cities.`;
 }
 
 function fallbackDestinations() {
   return [
-    { name: "Lisbon, Portugal", airportCode: "LIS", matchReason: "A reliable pick for first-time international travelers — walkable, affordable, and welcoming.", bestTimeToVisit: "March–May or September–October", costTier: "$$", highlights: ["Historic trams & viewpoints", "Fresh seafood", "Easy day trips to Sintra"] },
-    { name: "Kyoto, Japan", airportCode: "KIX", matchReason: "For travelers wanting culture and craft over nightlife.", bestTimeToVisit: "March–April (cherry blossoms) or November (fall colors)", costTier: "$$$", highlights: ["Historic temples", "Traditional tea houses", "Bamboo groves"] },
-    { name: "Mexico City, Mexico", airportCode: "MEX", matchReason: "Big-city energy with strong food culture and good value.", bestTimeToVisit: "March–May", costTier: "$", highlights: ["World-class museums", "Street food", "Vibrant neighborhoods"] },
-    { name: "Queenstown, New Zealand", airportCode: "ZQN", matchReason: "For travelers who want outdoor adventure as the centerpiece of the trip.", bestTimeToVisit: "December–February (summer) or June–August (ski season)", costTier: "$$$", highlights: ["Hiking & adventure sports", "Lake & mountain scenery", "Nearby wine country"] },
+    { name: "Lisbon, Portugal", airportCode: "LIS", matchReason: "A reliable pick for first-time international travelers — walkable, affordable, and welcoming.", bestTimeToVisit: "March–May or September–October", whyNow: "Shoulder season means fewer crowds and lower prices than summer.", costTier: "$$", highlights: ["Historic trams & viewpoints", "Fresh seafood", "Easy day trips to Sintra"] },
+    { name: "Kyoto, Japan", airportCode: "KIX", matchReason: "For travelers wanting culture and craft over nightlife.", bestTimeToVisit: "March–April (cherry blossoms) or November (fall colors)", whyNow: "Cherry blossom and fall foliage windows are short and specific.", costTier: "$$$", highlights: ["Historic temples", "Traditional tea houses", "Bamboo groves"] },
+    { name: "Mexico City, Mexico", airportCode: "MEX", matchReason: "Big-city energy with strong food culture and good value.", bestTimeToVisit: "March–May", whyNow: "Dry season with mild temperatures before summer rains.", costTier: "$", highlights: ["World-class museums", "Street food", "Vibrant neighborhoods"] },
+    { name: "Queenstown, New Zealand", airportCode: "ZQN", matchReason: "For travelers who want outdoor adventure as the centerpiece of the trip.", bestTimeToVisit: "December–February (summer) or June–August (ski season)", whyNow: "Peak summer hiking or peak ski season, depending on when you go.", costTier: "$$$", highlights: ["Hiking & adventure sports", "Lake & mountain scenery", "Nearby wine country"] },
+    { name: "Marrakech, Morocco", airportCode: "RAK", matchReason: "For travelers wanting a striking change of scenery and strong food culture.", bestTimeToVisit: "March–May or September–November", whyNow: "Avoids the extreme summer heat while keeping days pleasantly warm.", costTier: "$", highlights: ["Historic medina", "Souks & markets", "Day trips to the Atlas Mountains"] },
+    { name: "Cape Town, South Africa", airportCode: "CPT", matchReason: "For travelers who want nature, coastline, and city in one trip.", bestTimeToVisit: "November–March", whyNow: "Southern hemisphere summer — warm, dry, and clear for coastal views.", costTier: "$$", highlights: ["Table Mountain", "Coastal drives", "Wine country nearby"] },
   ];
 }
 
