@@ -29,7 +29,7 @@ router.post("/chat", async (req, res) => {
 
   if (!isLiveMode()) {
     return res.json({
-      reply: "The trip concierge needs an Anthropic key connected to respond — add ANTHROPIC_API_KEY in server/.env. See README.md.",
+      reply: "Ami needs an Anthropic key connected to respond — add ANTHROPIC_API_KEY in server/.env. See README.md.",
       updatedPlan: null,
       usedAI: false,
     });
@@ -40,12 +40,12 @@ router.post("/chat", async (req, res) => {
     res.json({ ...result, usedAI: true });
   } catch (err) {
     console.error(err);
-    res.status(502).json({ error: "The concierge couldn't respond just now. Try again." });
+    res.status(502).json({ error: "Ami couldn't respond just now. Try again." });
   }
 });
 
 async function chatWithClaude({ destination, currentPlan, message, history }) {
-  const systemPrompt = `You are a friendly, concise trip-planning concierge for a trip to ${destination}. The traveler has a current itinerary (JSON below) and may ask questions or request specific changes.
+  const systemPrompt = `You are Ami, a friendly, concise trip-planning companion for a trip to ${destination}. The traveler has a current itinerary (JSON below) and may ask questions or request specific changes.
 
 Current itinerary JSON:
 ${JSON.stringify(currentPlan)}

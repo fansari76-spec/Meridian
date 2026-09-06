@@ -191,7 +191,7 @@ export default function GroupTripPage({ tripId }) {
     } else if (result) {
       setResolveNote(result.reply);
     } else {
-      setResolveNote("Couldn't reach the concierge just now — try again.");
+      setResolveNote("Couldn't reach Ami just now — try again.");
     }
   }
 
@@ -383,7 +383,7 @@ export default function GroupTripPage({ tripId }) {
         </div>
 
         <button className="book-btn" onClick={handleResolve} disabled={resolving} style={{ marginBottom: 20 }}>
-          {resolving ? "Resolving…" : "Resolve disagreements with concierge"}
+          {resolving ? "Resolving…" : "Resolve disagreements with Ami"}
         </button>
         {resolveNote && <p className="pref-hint" style={{ marginBottom: 20 }}>{resolveNote}</p>}
 

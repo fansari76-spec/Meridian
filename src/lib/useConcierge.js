@@ -16,7 +16,7 @@ export function useConcierge() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ destination, currentPlan, message, history }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "The concierge couldn't respond.");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Ami couldn't respond.");
       return await res.json();
     } catch (err) {
       setError(err.message);

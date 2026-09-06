@@ -1827,7 +1827,7 @@ export default function App() {
             ))}
             {weatherDays.some((d) => d.precipitationMm > 5) && (
               <button className="book-btn secondary weather-adjust-btn" onClick={handleAskConciergeAboutWeather} disabled={conciergeLoading}>
-                Ask concierge to adjust for weather
+                Ask Ami to adjust for weather
               </button>
             )}
           </div>
@@ -1892,7 +1892,7 @@ export default function App() {
         </div>
 
         <div className="concierge-box">
-          <div className="pref-label">Ask the trip concierge</div>
+          <div className="pref-label">Ask Ami</div>
           <p className="pref-hint" style={{ marginTop: -4, marginBottom: 12 }}>
             Ask a question, or ask for a change — "swap day 2's dinner for something vegan," "make day 3 more relaxed," "what's the best time to visit that market?"
           </p>
@@ -1918,7 +1918,7 @@ export default function App() {
               onKeyDown={(e) => e.key === "Enter" && handleSendChatMessage()}
               disabled={conciergeLoading}
             />
-            <button className="book-btn" style={{ margin: 0 }} onClick={handleSendChatMessage} disabled={conciergeLoading}>
+            <button className="book-btn" style={{ margin: 0 }} onClick={() => handleSendChatMessage()} disabled={conciergeLoading}>
               Send
             </button>
           </div>
