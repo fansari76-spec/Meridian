@@ -9,6 +9,7 @@ import { calculateBudget } from "./lib/budget.js";
 import { useFlightSearch } from "./lib/useFlightSearch.js";
 import { useStaySearch } from "./lib/useStaySearch.js";
 import { useItinerary } from "./lib/useItinerary.js";
+import { useImportBooking } from "./lib/useImportBooking.js";
 import { useConcierge } from "./lib/useConcierge.js";
 import { usePacking } from "./lib/usePacking.js";
 import { useBriefing } from "./lib/useBriefing.js";
@@ -447,6 +448,10 @@ export default function App() {
   });
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [prefsSaveStatus, setPrefsSaveStatus] = useState("");
+  const [showImportBooking, setShowImportBooking] = useState(false);
+  const [importFlightFile, setImportFlightFile] = useState(null);
+  const [importHotelFile, setImportHotelFile] = useState(null);
+  const [importResultStatus, setImportResultStatus] = useState("");
 
   const handleSavePreferences = async () => {
     if (!user) {
@@ -460,6 +465,28 @@ export default function App() {
     } catch (err) {
       setPrefsSaveStatus("Couldn't save — check your connection and try again.");
     }
+  };
+
+  const handleImportBooking = async () => {
+    const files = [importFlightFile, importHotelFile].filter(Boolean);
+    if (files.length === 0) return;
+    setImportResultStatus("Reading your confirmation…");
+    const trip = await importBooking(files);
+    if (!trip) {
+      setImportResultStatus(importBookingError || "Couldn't read that confirmation — try a clearer photo or the original PDF.");
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      origin: trip.origin || f.origin,
+      destination: trip.destination || f.destination,
+      departDate: trip.departDate || f.departDate,
+      returnDate: trip.returnDate || f.returnDate,
+      travelers: trip.travelers || f.travelers,
+    }));
+    setImportResultStatus(`Got it${trip.destination ? ` — planning your trip to ${trip.destination}` : ""}. Building your itinerary now…`);
+    setShowImportBooking(false);
+    setActiveTab("itinerary");
   };
 
   const [originSource, setOriginSource] = useState("default"); // "default" | "geo" | "homeBase" | "manual" — tracks whether the origin field can still be auto-set
@@ -515,6 +542,7 @@ export default function App() {
   const { search: checkPrice } = useFlightSearch(); // separate instance so price-checks don't clobber the main search results
   const { search: searchStays, loading: staysLoading, stays: fetchedStays, usedMockData: staysUsedMock, resolvedLocation: staysResolvedLocation } = useStaySearch();
   const { generate: generateItineraryAI, loading: itineraryLoading, plan: aiPlan, usedAI, warning: itineraryWarning } = useItinerary();
+  const { importBooking, loading: importBookingLoading, error: importBookingError } = useImportBooking();
   const { sendMessage: sendConciergeMessage, loading: conciergeLoading } = useConcierge();
   const { generate: generatePacking, loading: packingLoading, categories: packingCategories, usedAI: packingUsedAI, warning: packingWarning } = usePacking();
   const [packedItems, setPackedItems] = useState({}); // "category::item" -> bool
@@ -1542,6 +1570,41 @@ export default function App() {
             <h2>Flights to {form.destination}</h2>
             <p>Results from your search above — sorted best-value by default.</p>
           </div>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          {!showImportBooking ? (
+            <button className="book-btn secondary" onClick={() => setShowImportBooking(true)}>
+              Already booked? Import it →
+            </button>
+          ) : (
+            <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 20 }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>Import your existing booking</div>
+              <p className="pref-hint" style={{ marginBottom: 16 }}>
+                Upload a flight confirmation, a hotel confirmation, or both — PDF or a clear photo/screenshot works.
+                We'll figure out where you're going and build the rest: activities, packing list, safety &amp; etiquette notes, and group planning.
+              </p>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", marginBottom: 6 }}>Flight confirmation (optional)</label>
+                  <input type="file" accept=".pdf,image/*" onChange={(e) => setImportFlightFile(e.target.files?.[0] || null)} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", marginBottom: 6 }}>Hotel confirmation (optional)</label>
+                  <input type="file" accept=".pdf,image/*" onChange={(e) => setImportHotelFile(e.target.files?.[0] || null)} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button className="book-btn" onClick={handleImportBooking} disabled={importBookingLoading || (!importFlightFile && !importHotelFile)}>
+                  {importBookingLoading ? "Reading your confirmation…" : "Import & plan my trip"}
+                </button>
+                <button className="book-btn secondary" onClick={() => { setShowImportBooking(false); setImportFlightFile(null); setImportHotelFile(null); setImportResultStatus(""); }}>
+                  Cancel
+                </button>
+              </div>
+              {importResultStatus && <p className="pref-hint" style={{ marginTop: 12 }}>{importResultStatus}</p>}
+            </div>
+          )}
         </div>
 
         {(topFlight || topStay) && (
