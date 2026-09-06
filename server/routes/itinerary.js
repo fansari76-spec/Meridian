@@ -28,6 +28,7 @@ router.post("/generate", async (req, res) => {
     interests = [],
     cuisine = null,
     faithTradition = null,
+    pilgrimageTemplate = null,
     travelParty = null,
     pace = null,
     budgetStyle = null,
@@ -46,7 +47,7 @@ router.post("/generate", async (req, res) => {
 
   try {
     if (isLiveMode()) {
-      const plan = await generateWithClaude({ destination, days, interests, cuisine, faithTradition, prefs });
+      const plan = await generateWithClaude({ destination, days, interests, cuisine, faithTradition, pilgrimageTemplate, prefs });
       return res.json({ plan, usedAI: true });
     }
     const plan = generateWithTemplates({ days, interests, pace });
@@ -64,8 +65,8 @@ router.post("/generate", async (req, res) => {
 // LIVE MODE — real Claude-generated itinerary
 // ---------------------------------------------------------------------
 
-async function generateWithClaude({ destination, days, interests, cuisine, faithTradition, prefs }) {
-  const prompt = buildPrompt({ destination, days, interests, cuisine, faithTradition, prefs });
+async function generateWithClaude({ destination, days, interests, cuisine, faithTradition, pilgrimageTemplate, prefs }) {
+  const prompt = buildPrompt({ destination, days, interests, cuisine, faithTradition, pilgrimageTemplate, prefs });
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -92,7 +93,7 @@ async function generateWithClaude({ destination, days, interests, cuisine, faith
   return parsed;
 }
 
-function buildPrompt({ destination, days, interests, cuisine, faithTradition, prefs = {} }) {
+function buildPrompt({ destination, days, interests, cuisine, faithTradition, pilgrimageTemplate, prefs = {} }) {
   const { travelParty, pace, budgetStyle, occasion, dietaryRestrictions, favoriteCuisines, accessibilityNotes, otherNotes } = prefs;
   const paceGuidance = {
     "Packed & efficient": "Pack each day with 4 activities — this traveler wants to see and do as much as possible.",
@@ -104,11 +105,18 @@ function buildPrompt({ destination, days, interests, cuisine, faithTradition, pr
     Luxury: "Feel free to recommend higher-end, splurge-worthy experiences.",
   }[budgetStyle] || "";
 
+  const pilgrimageGuidance = pilgrimageTemplate?.length
+    ? `This trip should follow the standard, well-established ${faithTradition} pilgrimage circuit, not a generic city itinerary. Structure the ${days}-day plan around this real sequence of stops (allocate days across cities in roughly this order and proportion, compressing sensibly if ${days} is fewer days than the full circuit):\n${pilgrimageTemplate
+        .map((stop) => `- ${stop.city} (${stop.nights > 0 ? `${stop.nights} night${stop.nights > 1 ? "s" : ""}` : "day trip"}): ${stop.highlights.join("; ")}`)
+        .join("\n")}\nWork these specific named sites into the relevant days as real activities, not just city names.`
+    : "";
+
   return `You are a travel planner. Build a ${days}-day itinerary for a trip to ${destination}.
 
 Traveler's stated interests: ${interests.length ? interests.join(", ") : "no strong preference, keep it balanced"}.
 Dietary/cuisine preference: ${cuisine || "none specified"}.
 ${faithTradition ? `This is a pilgrimage-style trip for the ${faithTradition} tradition — prioritize relevant sacred sites and be mindful of appropriate pacing and any relevant observances.` : ""}
+${pilgrimageGuidance}
 ${travelParty ? `Who's traveling: ${travelParty} — tailor activity choices accordingly (e.g. family-friendly if kids are involved).` : ""}
 ${paceGuidance}
 ${budgetGuidance}

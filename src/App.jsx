@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import AuthButtons from "./components/AuthButtons.jsx";
-import { PILGRIMAGE_SITES } from "./data/pilgrimage.js";
+import { PILGRIMAGE_SITES, totalPilgrimageNights } from "./data/pilgrimage.js";
 import { calculateBudget } from "./lib/budget.js";
 import { useFlightSearch } from "./lib/useFlightSearch.js";
 import { useStaySearch } from "./lib/useStaySearch.js";
@@ -199,12 +199,12 @@ const FLIGHTS_HERO_IMAGES = [
 // Pilgrimage page — chosen for a peaceful, respectful feel rather than
 // claiming pixel-perfect authenticity of one specific named site.
 const PILGRIMAGE_HERO_IMAGES = [
-  "https://images.unsplash.com/photo-1552733407-5d5c46c3bb3b?auto=format&fit=crop&w=1600&q=70",
-  "https://images.unsplash.com/photo-1531572753322-ad063cecc140?auto=format&fit=crop&w=1600&q=70",
-  "https://images.unsplash.com/photo-1560930950-5cc20e80e392?auto=format&fit=crop&w=1600&q=70",
-  "https://images.unsplash.com/photo-1524230507669-5ff97982bb5e?auto=format&fit=crop&w=1600&q=70",
-  "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1600&q=70",
-  "https://images.unsplash.com/photo-1580746738099-1b6c17f6f8f2?auto=format&fit=crop&w=1600&q=70",
+  "https://images.unsplash.com/photo-1748786919806-464841e61654?auto=format&fit=crop&w=1600&q=70", // Buddhism — Haedong Yonggungsa Temple, Busan
+  "https://images.unsplash.com/photo-1724665958313-080a60b5a8a8?auto=format&fit=crop&w=1600&q=70", // Catholicism — St Peter's Basilica through the Vatican Gardens
+  "https://images.unsplash.com/photo-1575667456742-4269014e68aa?auto=format&fit=crop&w=1600&q=70", // Christianity — Old City of Jerusalem
+  "https://images.unsplash.com/photo-1561361058-c24cecae35ca?auto=format&fit=crop&w=1600&q=70", // Hinduism — Ganges riverfront, Varanasi
+  "https://images.unsplash.com/photo-1512632578888-169bbbc64f33?auto=format&fit=crop&w=1600&q=70", // Islam — Sheikh Zayed Grand Mosque
+  "https://images.unsplash.com/photo-1542743409-158c1d9b2c61?auto=format&fit=crop&w=1600&q=70", // Judaism — the Western Wall, Jerusalem
 ];
 
 export default function App() {
@@ -418,6 +418,7 @@ export default function App() {
         interests,
         cuisine: cuisine || null,
         faithTradition: selectedFaith?.name || null,
+        pilgrimageTemplate: selectedFaith?.typicalItinerary || null,
         travelParty: prefs.travelParty,
         pace: prefs.pace,
         budgetStyle: prefs.budgetStyle,
@@ -455,6 +456,30 @@ export default function App() {
       return passengers;
     }
     return Array.from({ length: Number(form.travelers) || 1 }, () => ({ type: "adult" }));
+  }
+
+  // "Plan this pilgrimage" — pre-fills the flight search with the right
+  // gateway airport and a date window matching the typical circuit
+  // length, sets the appropriate dietary filter, and jumps to search.
+  // The itinerary generator picks up the template automatically via
+  // selectedFaith, which is already wired into the generation effect.
+  function handlePlanPilgrimage(site) {
+    const nights = totalPilgrimageNights(site);
+    const depart = new Date();
+    depart.setDate(depart.getDate() + 60); // a reasonable default planning horizon
+    const ret = new Date(depart);
+    ret.setDate(ret.getDate() + nights);
+    const toISODate = (d) => d.toISOString().slice(0, 10);
+
+    setForm((f) => ({ ...f, destination: site.airportCode, departDate: toISODate(depart), returnDate: toISODate(ret) }));
+    if (site.suggestedDietary?.length) {
+      setPrefs((p) => ({
+        ...p,
+        dietaryRestrictions: [...new Set([...(p.dietaryRestrictions || []), ...site.suggestedDietary])],
+      }));
+    }
+    setSelectedFaith(site);
+    setActiveTab("search");
   }
 
   async function handleSearch(e) {
@@ -1844,6 +1869,31 @@ export default function App() {
             <p>{selectedFaith.logistics}</p>
             <h4>Dietary & lodging</h4>
             <p>{selectedFaith.dietary}</p>
+
+            <h4>Typical itinerary — {totalPilgrimageNights(selectedFaith)} nights</h4>
+            <div className="pilgrimage-itinerary-list">
+              {selectedFaith.typicalItinerary.map((stop, i) => (
+                <div key={i} className="pilgrimage-itinerary-stop">
+                  <div className="pilgrimage-itinerary-stop-head">
+                    <strong>{stop.city}</strong>
+                    <span>{stop.nights > 0 ? `${stop.nights} night${stop.nights > 1 ? "s" : ""}` : "Day trip"}</span>
+                  </div>
+                  <ul>
+                    {stop.highlights.map((h, j) => <li key={j}>{h}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            {selectedFaith.optionalExtension && (
+              <p className="pref-hint" style={{ marginTop: 10 }}>{selectedFaith.optionalExtension}</p>
+            )}
+
+            <button className="book-btn" style={{ marginTop: 18 }} onClick={() => handlePlanPilgrimage(selectedFaith)}>
+              Plan this pilgrimage →
+            </button>
+            <p className="pref-hint" style={{ marginTop: 8 }}>
+              Sets flights to the right gateway city, a {totalPilgrimageNights(selectedFaith)}-night window, and the appropriate dietary filter — then builds a day-by-day plan following this itinerary.
+            </p>
           </div>
         )}
         <p style={{ marginTop: 18, fontSize: "0.85rem", color: "#5A5F68" }}>
