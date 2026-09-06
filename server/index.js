@@ -18,6 +18,7 @@ import invitesRouter from "./routes/invites.js";
 import priceAlertsRouter from "./routes/priceAlerts.js";
 import importBookingRouter from "./routes/importBooking.js";
 import destinationRecommenderRouter from "./routes/destinationRecommender.js";
+import conversationalTripRouter from "./routes/conversationalTrip.js";
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api/invites", invitesRouter);
 app.use("/api/alerts", priceAlertsRouter);
 app.use("/api/import-booking", importBookingRouter);
 app.use("/api/destinations", destinationRecommenderRouter);
+app.use("/api/conversational-trip", conversationalTripRouter);
 
 app.get("/health", (req, res) => {
   res.json({
