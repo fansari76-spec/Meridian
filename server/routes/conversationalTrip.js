@@ -92,6 +92,8 @@ Allowed values (use EXACTLY these strings, or null if not mentioned/unclear):
 - cuisine (single, one of): "Halal", "Kosher", "Vegetarian", "Vegan", "Gluten-free", "Pescatarian"
 - dietaryRestrictions (array, subset of): "Halal", "Kosher", "Vegetarian", "Vegan", "Gluten-free", "Pescatarian", "Nut allergy", "Dairy-free"
 - favoriteCuisines (array, subset of, in the order mentioned): "Italian", "Japanese", "Mexican", "Indian", "Thai", "Mediterranean", "French", "Chinese", "Middle Eastern", "American"
+- continents (array, subset of, ONLY if they named a broad region/continent without a specific city — e.g. "somewhere in Europe" or "maybe Asia"): "Europe", "Asia", "Latin America", "Africa", "Oceania", "Middle East"
+- region: "Domestic (US) only" | "International only" | "Anywhere" — infer from context if they said something like "somewhere in the US" or "I want to leave the country", otherwise "Anywhere"
 
 Use web search to verify any named destination is real and to find its main international airport's 3-letter IATA code, and to resolve relative dates (e.g. "the second week of November", "next month") against today's actual date into real YYYY-MM-DD dates.
 
@@ -116,7 +118,9 @@ Respond with ONLY a JSON object (no markdown fences, no preamble), in this exact
   "dietaryRestrictions": [],
   "favoriteCuisines": [],
   "accessibilityNotes": "string or null, only if explicitly mentioned",
-  "otherNotes": "string or null — anything meaningful they said that doesn't fit another field"
+  "otherNotes": "string or null — anything meaningful they said that doesn't fit another field",
+  "continents": [],
+  "region": "Anywhere"
 }
 
 Only fill a field if you're genuinely confident it was expressed or clearly implied — leave everything else null/empty rather than guessing.`;
