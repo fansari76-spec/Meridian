@@ -2768,7 +2768,7 @@ export default function App() {
             <p>Steps, distance, and floors for this trip — see it daily, weekly, or trip-wide, and turn it into a friendly competition with your group.</p>
           </div>
         </div>
-        <TripHealthDashboard />
+        <TripHealthDashboard user={user} />
       </section>
 
       {/* ===================== PILGRIMAGE ===================== */}
