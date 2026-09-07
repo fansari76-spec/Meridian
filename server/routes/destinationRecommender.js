@@ -37,11 +37,12 @@ router.post("/recommend", async (req, res) => {
     travelParty = null,
     pace = null,
     dietaryRestrictions = [],
+    mustInclude = null,
   } = req.body;
 
   try {
     if (isLiveMode()) {
-      const destinations = await recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions });
+      const destinations = await recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude });
       return res.json({ destinations, usedAI: true });
     }
     return res.json({ destinations: fallbackDestinations(), usedAI: false });
@@ -55,8 +56,8 @@ router.post("/recommend", async (req, res) => {
   }
 });
 
-async function recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions }) {
-  const prompt = buildPrompt({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions });
+async function recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude }) {
+  const prompt = buildPrompt({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude });
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -82,7 +83,10 @@ async function recommendWithClaude({ budgetStyle, month, region, continents, int
   return parsed;
 }
 
-function buildPrompt({ budgetStyle, month, region, continents = [], interests, cuisine, travelParty, pace, dietaryRestrictions }) {
+function buildPrompt({ budgetStyle, month, region, continents = [], interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude }) {
+  const mustIncludeConstraint = mustInclude
+    ? `The traveler specifically mentioned ${mustInclude} as an option they're considering. You MUST include it as one of the destinations below (verify it's a genuinely good real fit and give it an honest matchReason/timing like any other pick) — do not drop it. Fill the remaining slots with other real, distinct alternatives so they have something to compare it against.`
+    : "";
   const isDomestic = region === "Domestic (US) only";
   const continentConstraint = !isDomestic && continents.length
     ? `Only suggest destinations on these continents: ${continents.join(", ")}.`
@@ -96,6 +100,7 @@ Budget style: ${budgetStyle || "no strong preference"}.
 Travel timing: ${month || "flexible, no specific month"}.
 Region preference: ${region}.
 ${continentConstraint}
+${mustIncludeConstraint}
 Stated interests: ${interests.length ? interests.join(", ") : "no strong preference, suggest a good variety"}.
 Cuisine preference: ${cuisine || "none specified"}.
 ${travelParty ? `Traveling as: ${travelParty} — factor this into suitability.` : ""}

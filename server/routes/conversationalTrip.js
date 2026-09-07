@@ -97,7 +97,10 @@ Allowed values (use EXACTLY these strings, or null if not mentioned/unclear):
 
 Use web search to verify any named destination is real and to find its main international airport's 3-letter IATA code, and to resolve relative dates (e.g. "the second week of November", "next month") against today's actual date into real YYYY-MM-DD dates.
 
-IMPORTANT on destinationKnown: if the traveler names ANY specific real place at all — even if they hedge it with "or somewhere similar", "or somewhere else in [region]", "maybe X", etc. — set destinationKnown to TRUE and use that named place. A person who bothered to name a real destination has given you a real answer; don't discard it into an open-ended recommendation search just because they also expressed some flexibility. Only set destinationKnown to false when NO specific place was named at all (e.g. "somewhere warm", "I don't know where to go").
+IMPORTANT on destinationKnown vs namedExample: distinguish a FIRM decision from a NAMED EXAMPLE offered alongside real openness to alternatives.
+- Set destinationKnown to TRUE only for a firm, singular decision with no hedging language ("I want to go to Interlaken", "we're going to Interlaken").
+- If they name a specific real place but ALSO signal openness to alternatives ("Interlaken or somewhere else", "maybe Interlaken, or somewhere similar", "Interlaken or another scenic spot in Europe"), set destinationKnown to FALSE, and instead put that named place in "namedExample" below — this guarantees it gets included as one of several real options to compare, rather than being silently discarded OR forced as the only choice.
+- Only leave namedExample null when truly no specific place was mentioned at all (e.g. "somewhere warm", "I don't know where to go").
 
 Respond with ONLY a JSON object (no markdown fences, no preamble), in this exact shape:
 {
@@ -122,7 +125,8 @@ Respond with ONLY a JSON object (no markdown fences, no preamble), in this exact
   "accessibilityNotes": "string or null, only if explicitly mentioned",
   "otherNotes": "string or null — anything meaningful they said that doesn't fit another field",
   "continents": [],
-  "region": "Anywhere"
+  "region": "Anywhere",
+  "namedExample": "City, Country or null — see the destinationKnown rules above"
 }
 
 Only fill a field if you're genuinely confident it was expressed or clearly implied — leave everything else null/empty rather than guessing.`;
