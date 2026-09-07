@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import AuthButtons from "./components/AuthButtons.jsx";
 import { PILGRIMAGE_SITES, totalPilgrimageNights } from "./data/pilgrimage.js";
 import { RITUAL_CHECKLISTS } from "./data/ritualChecklists.js";
@@ -460,6 +460,7 @@ export default function App() {
   const [recRegion, setRecRegion] = useState("Anywhere");
   const [recContinents, setRecContinents] = useState([]);
   const [destinationLabel, setDestinationLabel] = useState(""); // real city name, e.g. "Interlaken, Switzerland" — used for hotels/weather/itinerary instead of decoding the airport code
+  const isAiRequestInFlightRef = useRef(false); // guards handleGetDestinationIdeas and handleParseConversationalTrip against a double-fire (double-click, etc.) triggering two identical, expensive AI calls at once
   const [destinationResults, setDestinationResults] = useState(null);
   const [destinationRecStatus, setDestinationRecStatus] = useState("");
   const [showConversationalEntry, setShowConversationalEntry] = useState(true);
@@ -505,25 +506,31 @@ export default function App() {
   };
 
   const handleGetDestinationIdeas = async () => {
-    setDestinationRecStatus("Thinking of some real options…");
-    setDestinationResults(null);
-    const data = await recommendDestinations({
-      budgetStyle: recBudgetStyle || prefs.budgetStyle || null,
-      month: recMonth || null,
-      region: recRegion,
-      continents: recContinents,
-      interests,
-      cuisine,
-      travelParty: prefs.travelParty || null,
-      pace: prefs.pace || null,
-      dietaryRestrictions: prefs.dietaryRestrictions || [],
-    });
-    if (!data) {
-      setDestinationRecStatus(destinationRecError || "Couldn't get destination ideas — try again in a moment.");
-      return;
+    if (isAiRequestInFlightRef.current) return;
+    isAiRequestInFlightRef.current = true;
+    try {
+      setDestinationRecStatus("Thinking of some real options…");
+      setDestinationResults(null);
+      const data = await recommendDestinations({
+        budgetStyle: recBudgetStyle || prefs.budgetStyle || null,
+        month: recMonth || null,
+        region: recRegion,
+        continents: recContinents,
+        interests,
+        cuisine,
+        travelParty: prefs.travelParty || null,
+        pace: prefs.pace || null,
+        dietaryRestrictions: prefs.dietaryRestrictions || [],
+      });
+      if (!data) {
+        setDestinationRecStatus(destinationRecError || "Couldn't get destination ideas — try again in a moment.");
+        return;
+      }
+      setDestinationResults(data.destinations);
+      setDestinationRecStatus(data.usedAI ? "" : (data.warning || "Showing general picks — connect ANTHROPIC_API_KEY for personalized suggestions."));
+    } finally {
+      isAiRequestInFlightRef.current = false;
     }
-    setDestinationResults(data.destinations);
-    setDestinationRecStatus(data.usedAI ? "" : (data.warning || "Showing general picks — connect ANTHROPIC_API_KEY for personalized suggestions."));
   };
 
   const handleUseRecommendedDestination = async (dest) => {
@@ -584,99 +591,105 @@ export default function App() {
   }
 
   const handleParseConversationalTrip = async () => {
+    if (isAiRequestInFlightRef.current) return;
     if (!tripDescription.trim()) return;
-    setConversationalParseStatus("Reading your trip…");
-    const trip = await parseConversationalTrip(tripDescription);
-    if (!trip) {
-      setConversationalParseStatus(conversationalError || "Couldn't understand that — try rephrasing with a bit more detail.");
-      return;
-    }
-
-    // Merge every extracted preference field, same pattern as the
-    // duplicate-trip and import-booking flows: only fill what was
-    // actually found, never overwrite with a blank.
-    setPrefs((p) => ({
-      ...p,
-      travelParty: trip.travelParty || p.travelParty,
-      pace: trip.pace || p.pace,
-      budgetStyle: trip.budgetStyle || p.budgetStyle,
-      stayType: trip.stayType || p.stayType,
-      flightPriority: trip.flightPriority || p.flightPriority,
-      occasion: trip.occasion || p.occasion,
-      dietaryRestrictions: trip.dietaryRestrictions?.length ? trip.dietaryRestrictions : p.dietaryRestrictions,
-      favoriteCuisines: trip.favoriteCuisines?.length ? trip.favoriteCuisines : p.favoriteCuisines,
-      accessibilityNotes: trip.accessibilityNotes || p.accessibilityNotes,
-      otherNotes: trip.otherNotes || p.otherNotes,
-    }));
-    if (trip.interests?.length) setInterests(trip.interests);
-    if (trip.cuisine) setCuisine(trip.cuisine);
-
-    let departDate = trip.departDate || form.departDate;
-    let returnDate = trip.returnDate || form.returnDate;
-    if (trip.departDate && !trip.returnDate && trip.tripLengthDays) {
-      const d = new Date(trip.departDate + "T00:00:00");
-      d.setDate(d.getDate() + trip.tripLengthDays);
-      returnDate = d.toISOString().slice(0, 10);
-    }
-
-    if (trip.destinationKnown && trip.airportCode) {
-      const updatedForm = {
-        ...form,
-        origin: trip.origin || form.origin,
-        destination: trip.airportCode,
-        departDate,
-        returnDate,
-        travelers: trip.travelers || form.travelers,
-      };
-      setForm(updatedForm);
-      setDestinationLabel(trip.destinationName || "");
-      setOriginSource("manual");
-      setConversationalParseStatus(`Got it — planning your trip to ${trip.destinationName}. Searching flights and hotels now…`);
-      setShowConversationalEntry(false);
-
-      const passengers = buildPassengersForSearch();
-      const data = await search({ ...updatedForm, passengers, travelers: passengers.length });
-      if (data?.primary?.offers?.length) {
-        setSelectedFlight(data.primary.offers[0]);
-        setSelectedFlexOffset(null);
-      }
-    } else {
-      // No destination named — hand off to the destination recommender,
-      // pre-filled with whatever preference signals we just extracted,
-      // and run it immediately instead of making them click again.
-      const resolvedContinents = trip.continents?.length ? trip.continents : recContinents;
-      const resolvedRegion = trip.region && trip.region !== "Anywhere" ? trip.region : recRegion;
-
-      setForm((f) => ({ ...f, departDate, returnDate, travelers: trip.travelers || f.travelers }));
-      setRecBudgetStyle(trip.budgetStyle || "");
-      setRecMonth(monthNameFromDate(trip.departDate) || "");
-      setRecContinents(resolvedContinents);
-      setRecRegion(resolvedRegion);
-      setConversationalParseStatus("No destination yet — let me suggest some real options based on what you told me…");
-      setShowConversationalEntry(false);
-      setShowDestinationRecommender(true);
-
-      setDestinationRecStatus("Thinking of some real options…");
-      setDestinationResults(null);
-      const recData = await recommendDestinations({
-        budgetStyle: trip.budgetStyle || null,
-        month: monthNameFromDate(trip.departDate),
-        region: resolvedRegion,
-        continents: resolvedContinents,
-        interests: trip.interests?.length ? trip.interests : interests,
-        cuisine: trip.cuisine || cuisine,
-        travelParty: trip.travelParty || null,
-        pace: trip.pace || null,
-        dietaryRestrictions: trip.dietaryRestrictions?.length ? trip.dietaryRestrictions : [],
-        mustInclude: trip.namedExamples || [],
-        exclude: trip.excludedDestinations || [],
-      });
-      if (!recData) {
-        setDestinationRecStatus(destinationRecError || "Couldn't get destination ideas — try again in a moment.");
+    isAiRequestInFlightRef.current = true;
+    try {
+      setConversationalParseStatus("Reading your trip…");
+      const trip = await parseConversationalTrip(tripDescription);
+      if (!trip) {
+        setConversationalParseStatus(conversationalError || "Couldn't understand that — try rephrasing with a bit more detail.");
         return;
       }
-      setDestinationResults(recData.destinations);
-      setDestinationRecStatus(recData.usedAI ? "" : (recData.warning || "Showing general picks — connect ANTHROPIC_API_KEY for personalized suggestions."));
+
+      // Merge every extracted preference field, same pattern as the
+      // duplicate-trip and import-booking flows: only fill what was
+      // actually found, never overwrite with a blank.
+      setPrefs((p) => ({
+        ...p,
+        travelParty: trip.travelParty || p.travelParty,
+        pace: trip.pace || p.pace,
+        budgetStyle: trip.budgetStyle || p.budgetStyle,
+        stayType: trip.stayType || p.stayType,
+        flightPriority: trip.flightPriority || p.flightPriority,
+        occasion: trip.occasion || p.occasion,
+        dietaryRestrictions: trip.dietaryRestrictions?.length ? trip.dietaryRestrictions : p.dietaryRestrictions,
+        favoriteCuisines: trip.favoriteCuisines?.length ? trip.favoriteCuisines : p.favoriteCuisines,
+        accessibilityNotes: trip.accessibilityNotes || p.accessibilityNotes,
+        otherNotes: trip.otherNotes || p.otherNotes,
+      }));
+      if (trip.interests?.length) setInterests(trip.interests);
+      if (trip.cuisine) setCuisine(trip.cuisine);
+
+      let departDate = trip.departDate || form.departDate;
+      let returnDate = trip.returnDate || form.returnDate;
+      if (trip.departDate && !trip.returnDate && trip.tripLengthDays) {
+        const d = new Date(trip.departDate + "T00:00:00");
+        d.setDate(d.getDate() + trip.tripLengthDays);
+        returnDate = d.toISOString().slice(0, 10);
+      }
+
+      if (trip.destinationKnown && trip.airportCode) {
+        const updatedForm = {
+          ...form,
+          origin: trip.origin || form.origin,
+          destination: trip.airportCode,
+          departDate,
+          returnDate,
+          travelers: trip.travelers || form.travelers,
+        };
+        setForm(updatedForm);
+        setDestinationLabel(trip.destinationName || "");
+        setOriginSource("manual");
+        setConversationalParseStatus(`Got it — planning your trip to ${trip.destinationName}. Searching flights and hotels now…`);
+        setShowConversationalEntry(false);
+
+        const passengers = buildPassengersForSearch();
+        const data = await search({ ...updatedForm, passengers, travelers: passengers.length });
+        if (data?.primary?.offers?.length) {
+          setSelectedFlight(data.primary.offers[0]);
+          setSelectedFlexOffset(null);
+        }
+      } else {
+        // No destination named — hand off to the destination recommender,
+        // pre-filled with whatever preference signals we just extracted,
+        // and run it immediately instead of making them click again.
+        const resolvedContinents = trip.continents?.length ? trip.continents : recContinents;
+        const resolvedRegion = trip.region && trip.region !== "Anywhere" ? trip.region : recRegion;
+
+        setForm((f) => ({ ...f, departDate, returnDate, travelers: trip.travelers || f.travelers }));
+        setRecBudgetStyle(trip.budgetStyle || "");
+        setRecMonth(monthNameFromDate(trip.departDate) || "");
+        setRecContinents(resolvedContinents);
+        setRecRegion(resolvedRegion);
+        setConversationalParseStatus("No destination yet — let me suggest some real options based on what you told me…");
+        setShowConversationalEntry(false);
+        setShowDestinationRecommender(true);
+
+        setDestinationRecStatus("Thinking of some real options…");
+        setDestinationResults(null);
+        const recData = await recommendDestinations({
+          budgetStyle: trip.budgetStyle || null,
+          month: monthNameFromDate(trip.departDate),
+          region: resolvedRegion,
+          continents: resolvedContinents,
+          interests: trip.interests?.length ? trip.interests : interests,
+          cuisine: trip.cuisine || cuisine,
+          travelParty: trip.travelParty || null,
+          pace: trip.pace || null,
+          dietaryRestrictions: trip.dietaryRestrictions?.length ? trip.dietaryRestrictions : [],
+          mustInclude: trip.namedExamples || [],
+          exclude: trip.excludedDestinations || [],
+        });
+        if (!recData) {
+          setDestinationRecStatus(destinationRecError || "Couldn't get destination ideas — try again in a moment.");
+          return;
+        }
+        setDestinationResults(recData.destinations);
+        setDestinationRecStatus(recData.usedAI ? "" : (recData.warning || "Showing general picks — connect ANTHROPIC_API_KEY for personalized suggestions."));
+      }
+    } finally {
+      isAiRequestInFlightRef.current = false;
     }
   };
 
