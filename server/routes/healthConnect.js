@@ -152,7 +152,11 @@ router.get("/activity", async (req, res) => {
 });
 
 async function fetchDailyRollup(accessToken, dataType, startDate, endDate) {
-  const url = `https://healthapi.googleapis.com/v1/users/me/dataTypes/${dataType}/dailyRollup?startDate=${startDate}&endDate=${endDate}`;
+  // Correct service: health.googleapis.com (not healthapi.googleapis.com),
+  // v4 (not v1), and dailyRollUp is a custom method — Google's REST
+  // convention for these uses a colon before the method name, not a
+  // plain path segment: .../dataPoints:dailyRollUp
+  const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints:dailyRollUp?startDate=${startDate}&endDate=${endDate}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!res.ok) throw new Error(`${dataType} fetch failed: ${res.status} ${await res.text()}`);
   return res.json();
