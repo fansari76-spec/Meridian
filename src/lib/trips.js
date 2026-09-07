@@ -9,6 +9,8 @@ import { isFirebaseConfigured, db } from "./firebase";
 import {
   collection,
   addDoc,
+  doc,
+  updateDoc,
   query,
   where,
   orderBy,
@@ -41,4 +43,18 @@ export async function loadTrips(userId) {
   const q = query(collection(db, "trips"), where("userId", "==", userId), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Writes changes to an already-saved trip — used by Living Itinerary
+// to persist a weather-adjusted day back onto the trip, so it sticks
+// around across sessions instead of only living in memory until the
+// page refreshes.
+export async function updateTrip(tripId, updates) {
+  if (!isFirebaseConfigured) {
+    const record = memoryStore.find((t) => t.id === tripId);
+    if (record) Object.assign(record, updates);
+    return record || null;
+  }
+  await updateDoc(doc(db, "trips", tripId), updates);
+  return { id: tripId, ...updates };
 }
