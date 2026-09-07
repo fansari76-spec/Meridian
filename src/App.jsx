@@ -16,8 +16,9 @@ import { useConcierge } from "./lib/useConcierge.js";
 import { usePacking } from "./lib/usePacking.js";
 import { useBriefing } from "./lib/useBriefing.js";
 import { useWeather } from "./lib/useWeather.js";
+import { useItineraryAdjust } from "./lib/useItineraryAdjust.js";
 import { subscribeToAuthChanges, signOutUser, isFirebaseConfigured } from "./lib/firebase.js";
-import { saveTrip, loadTrips } from "./lib/trips.js";
+import { saveTrip, loadTrips, updateTrip } from "./lib/trips.js";
 import { saveSharedTrip, getSharedTrip } from "./lib/sharedTrips.js";
 import { upsertUserProfile, findUserByEmail, findUsersByEmailHashes, searchUsersByPrefix, savePreferences, loadPreferences } from "./lib/users.js";
 import { addFriend, listFriends, removeFriend } from "./lib/friends.js";
@@ -54,6 +55,75 @@ const INTEREST_OPTIONS = [
   { id: "nightlife", label: "Nightlife" },
   { id: "shopping", label: "Shopping" },
 ];
+
+function LivingTripBanner({ trip, onTripUpdated }) {
+  const { fetchForecast, loading: wLoading, days: wDays, available: wAvailable } = useWeather();
+  const { adjustDay, loading: adjusting, error: adjustError } = useItineraryAdjust();
+  const [checkedToday, setCheckedToday] = useState(false);
+  const [adjustStatus, setAdjustStatus] = useState("");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isActiveNow = Boolean(trip.departDate && trip.returnDate && todayStr >= trip.departDate && todayStr <= trip.returnDate);
+
+  useEffect(() => {
+    if (isActiveNow && !checkedToday) {
+      fetchForecast({ destination: trip.destinationLabel || trip.destination, startDate: todayStr, endDate: todayStr });
+      setCheckedToday(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActiveNow, checkedToday]);
+
+  if (!isActiveNow) return null;
+
+  const dayNumber = Math.floor((new Date(todayStr) - new Date(trip.departDate + "T00:00:00")) / 86400000) + 1;
+  const todaysActivities = (trip.itineraryPlan || []).find((d) => d.dayNumber === dayNumber)?.activities || [];
+  const todayWeather = wDays?.[0];
+  const isBadWeather = todayWeather && todayWeather.precipitationMm > 5;
+
+  const handleAdjustToday = async () => {
+    setAdjustStatus("Adjusting today's plan for the weather…");
+    const weatherSummary = `${todayWeather.precipitationMm.toFixed(0)}mm of rain expected, high ${Math.round(todayWeather.tempMaxC)}°C / low ${Math.round(todayWeather.tempMinC)}°C`;
+    const activities = await adjustDay({
+      destination: trip.destinationLabel || trip.destination,
+      dayNumber,
+      originalActivities: todaysActivities,
+      weatherSummary,
+      interests: trip.interests || [],
+      cuisine: trip.cuisine || null,
+    });
+    if (!activities) {
+      setAdjustStatus(adjustError || "Couldn't adjust today's plan — try again in a moment.");
+      return;
+    }
+    const updatedPlan = (trip.itineraryPlan || []).map((d) => (d.dayNumber === dayNumber ? { ...d, activities } : d));
+    await updateTrip(trip.id, { itineraryPlan: updatedPlan });
+    onTripUpdated(trip.id, updatedPlan);
+    setAdjustStatus("Today's plan updated for the weather ✓");
+  };
+
+  return (
+    <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: "var(--gold-light)", border: "1px solid var(--gold)" }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>✈️ You're traveling now — Day {dayNumber}</div>
+      {wLoading && <p className="pref-hint">Checking today's weather…</p>}
+      {!wLoading && wAvailable === false && <p className="pref-hint">Weather isn't available for this check right now.</p>}
+      {!wLoading && isBadWeather && todaysActivities.length > 0 && (
+        <>
+          <p className="pref-hint" style={{ marginBottom: 8 }}>
+            Rain expected today ({todayWeather.precipitationMm.toFixed(0)}mm) — some of today's planned activities might not be much fun in this weather.
+          </p>
+          <button className="book-btn secondary" style={{ margin: 0 }} onClick={handleAdjustToday} disabled={adjusting}>
+            {adjusting ? "Adjusting…" : "Let Ami adjust today's plan →"}
+          </button>
+        </>
+      )}
+      {!wLoading && isBadWeather && todaysActivities.length === 0 && (
+        <p className="pref-hint">Rain's expected today, but this trip wasn't saved with a day-by-day plan for Ami to adjust — save a trip after generating its itinerary to enable this.</p>
+      )}
+      {!wLoading && !isBadWeather && todayWeather && <p className="pref-hint">Weather looks fine today — today's plan is on track.</p>}
+      {adjustStatus && <p className="pref-hint" style={{ marginTop: 8 }}>{adjustStatus}</p>}
+    </div>
+  );
+}
 
 const CUISINE_OPTIONS = ["Halal", "Kosher", "Vegetarian", "Vegan", "Gluten-free", "Pescatarian"];
 
@@ -3026,6 +3096,12 @@ export default function App() {
                               )}
                             </p>
                           )}
+                          <LivingTripBanner
+                            trip={t}
+                            onTripUpdated={(tripId, updatedPlan) => {
+                              setTrips((prev) => prev.map((pt) => (pt.id === tripId ? { ...pt, itineraryPlan: updatedPlan } : pt)));
+                            }}
+                          />
                         </div>
                       );
                     })
