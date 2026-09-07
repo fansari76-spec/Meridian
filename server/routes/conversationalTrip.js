@@ -97,6 +97,8 @@ Allowed values (use EXACTLY these strings, or null if not mentioned/unclear):
 
 Use web search to verify any named destination is real and to find its main international airport's 3-letter IATA code, and to resolve relative dates (e.g. "the second week of November", "next month") against today's actual date into real YYYY-MM-DD dates.
 
+IMPORTANT on destinationKnown: if the traveler names ANY specific real place at all — even if they hedge it with "or somewhere similar", "or somewhere else in [region]", "maybe X", etc. — set destinationKnown to TRUE and use that named place. A person who bothered to name a real destination has given you a real answer; don't discard it into an open-ended recommendation search just because they also expressed some flexibility. Only set destinationKnown to false when NO specific place was named at all (e.g. "somewhere warm", "I don't know where to go").
+
 Respond with ONLY a JSON object (no markdown fences, no preamble), in this exact shape:
 {
   "destinationKnown": boolean,
