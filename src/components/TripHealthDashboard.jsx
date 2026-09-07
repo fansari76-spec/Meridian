@@ -45,12 +45,26 @@ function daysAgoStr(n) {
 // field names and falls back gracefully rather than crashing the
 // whole dashboard if a field is named slightly differently than
 // expected.
-function sumRollup(rollupResponse, valueKey) {
+// Real Google Health dailyRollUp response shape (per official docs):
+// { "dailyRollupDataPoints": [ { "steps": { "countSum": "41" } }, ... ] }
+// — the value is nested under the data type's own field name, and
+// each metric uses its own value key (countSum for steps/floors,
+// metersSum for distance, kcalSum for calories). This tries the
+// documented shape first and falls back defensively in case Google
+// adjusts field names as this API matures.
+function sumRollup(rollupResponse, dataTypeKey, valueKeys) {
   if (!rollupResponse) return 0;
-  const entries = rollupResponse.dailyRollup || rollupResponse.rollup || rollupResponse.data || [];
+  const entries = rollupResponse.dailyRollupDataPoints || rollupResponse.rollupDataPoints || rollupResponse.dailyRollup || [];
   if (!Array.isArray(entries)) return 0;
   return entries.reduce((sum, entry) => {
-    const val = entry?.[valueKey] ?? entry?.value?.[valueKey] ?? entry?.countSum ?? entry?.sum ?? 0;
+    const nested = entry?.[dataTypeKey] || entry?.value || entry || {};
+    let val = 0;
+    for (const key of valueKeys) {
+      if (nested[key] != null) {
+        val = nested[key];
+        break;
+      }
+    }
     return sum + (Number(val) || 0);
   }, 0);
 }
@@ -167,13 +181,13 @@ export default function TripHealthDashboard({ user }) {
   const data = usingReal
     ? {
         dayLabel: view === "Daily" ? "Today" : view === "Weekly" ? "Last 7 days" : "Last 30 days",
-        steps: sumRollup(realData.steps, "count"),
+        steps: sumRollup(realData.steps, "steps", ["countSum", "count"]),
         stepGoal: STEP_GOAL_DEFAULT * (view === "Weekly" ? 7 : view === "Trip" ? 30 : 1),
-        distanceMiles: Math.round((sumRollup(realData.distance, "meters") / 1609.34) * 10) / 10,
+        distanceMiles: Math.round((sumRollup(realData.distance, "distance", ["metersSum", "meters"]) / 1609.34) * 10) / 10,
         distanceTrend: null,
-        floors: sumRollup(realData.floors, "count"),
+        floors: sumRollup(realData.floors, "floors", ["countSum", "count"]),
         floorsTrend: null,
-        calories: Math.round(sumRollup(realData.calories, "kcal")),
+        calories: Math.round(sumRollup(realData.calories, "totalCalories", ["kcalSum", "kcal"])),
         caloriesTrend: null,
         activeMinutes: 0,
         activeMinutesTrend: null,
