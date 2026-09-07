@@ -72,7 +72,7 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 function StepRing({ steps, goal }) {
   const [animatedPct, setAnimatedPct] = useState(0);
-  const radius = 108;
+  const radius = 84;
   const circumference = 2 * Math.PI * radius;
   const targetPct = Math.min(steps / goal, 1);
   const goalHit = steps >= goal;
@@ -84,7 +84,7 @@ function StepRing({ steps, goal }) {
   }, [steps, goal, targetPct]);
 
   const offset = circumference * (1 - animatedPct);
-  const size = 260;
+  const size = 200;
   const center = size / 2;
 
   return (
@@ -112,10 +112,10 @@ function StepRing({ steps, goal }) {
           transition: "stroke-dashoffset 1s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       />
-      <text x={center} y={center - 10} textAnchor="middle" style={{ fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: "46px", fill: "var(--ink)" }}>
+      <text x={center} y={center - 6} textAnchor="middle" style={{ fontFamily: "Sora, sans-serif", fontWeight: 700, fontSize: "34px", fill: "var(--ink)" }}>
         {steps.toLocaleString()}
       </text>
-      <text x={center} y={center + 22} textAnchor="middle" style={{ fontFamily: "Inter, sans-serif", fontSize: "15px", fill: "var(--indigo)" }}>
+      <text x={center} y={center + 18} textAnchor="middle" style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", fill: "var(--indigo)" }}>
         of {goal.toLocaleString()} steps
       </text>
     </svg>
@@ -133,7 +133,7 @@ function TrendBadge({ trend }) {
 
 function StatTile({ icon, label, value, unit, trend }) {
   return (
-    <div style={{ background: "var(--paper)", border: "1px solid var(--paper-dim)", borderRadius: 14, padding: "16px 18px", flex: "1 1 150px", textAlign: "center" }}>
+    <div style={{ background: "var(--paper)", border: "1px solid var(--paper-dim)", borderRadius: 14, padding: "12px 14px", flex: "1 1 130px", textAlign: "center" }}>
       <div style={{ fontFamily: "Inter, sans-serif", fontSize: "0.78rem", color: "var(--indigo)", marginBottom: 4 }}>
         <span style={{ marginRight: 5 }}>{icon}</span>
         {label}
@@ -153,12 +153,12 @@ function RouteMapPlaceholder() {
       style={{
         position: "relative",
         borderRadius: 14,
-        padding: "40px 20px",
+        padding: "26px 20px",
         textAlign: "center",
         overflow: "hidden",
         background: "linear-gradient(135deg, var(--teal-light), var(--gold-light))",
         border: "1px solid var(--paper-dim)",
-        marginBottom: 32,
+        marginBottom: 20,
       }}
     >
       <svg width="100%" height="100%" style={{ position: "absolute", top: 0, left: 0, opacity: 0.35 }} viewBox="0 0 800 160" preserveAspectRatio="none">
@@ -185,8 +185,8 @@ export default function TripHealthDashboard() {
   const personAhead = youIndex > 0 ? sortedLeaderboard[youIndex - 1] : null;
 
   return (
-    <div>
-      <div style={{ display: "inline-flex", gap: 4, padding: 4, background: "var(--paper-dim)", borderRadius: 999, marginBottom: 24 }}>
+    <div style={{ maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ display: "inline-flex", gap: 4, padding: 4, background: "var(--paper-dim)", borderRadius: 999, marginBottom: 16 }}>
         {VIEW_OPTIONS.map((opt) => (
           <button
             key={opt}
@@ -215,7 +215,7 @@ export default function TripHealthDashboard() {
             border: "1px solid var(--gold)",
             borderRadius: 12,
             padding: "10px 16px",
-            marginBottom: 24,
+            marginBottom: 16,
             fontFamily: "Inter, sans-serif",
             fontWeight: 600,
             fontSize: "0.9rem",
@@ -228,13 +228,13 @@ export default function TripHealthDashboard() {
       )}
 
       {/* Hero: big centered ring */}
-      <div style={{ textAlign: "center", marginBottom: 28 }}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
         <StepRing steps={data.steps} goal={data.stepGoal} />
-        <div style={{ fontFamily: "Sora, sans-serif", fontWeight: 600, fontSize: "1.2rem", color: "var(--ink)", marginTop: 8 }}>{data.dayLabel}</div>
+        <div style={{ fontFamily: "Sora, sans-serif", fontWeight: 600, fontSize: "1.1rem", color: "var(--ink)", marginTop: 6 }}>{data.dayLabel}</div>
       </div>
 
       {/* Stat tiles row, below the ring */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 32, maxWidth: 720, marginLeft: "auto", marginRight: "auto" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
         <StatTile icon="📏" label="Distance" value={data.distanceKm} unit="km" trend={data.distanceTrend} />
         <StatTile icon="🏢" label="Floors climbed" value={data.floors} unit="floors" trend={data.floorsTrend} />
         <StatTile icon="🔥" label="Calories" value={data.calories.toLocaleString()} unit="kcal" trend={data.caloriesTrend} />
