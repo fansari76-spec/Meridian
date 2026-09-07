@@ -152,20 +152,24 @@ router.get("/activity", async (req, res) => {
 });
 
 async function fetchDailyRollup(accessToken, dataType, startDate, endDate) {
-  // Per Google's official REST conventions (AIP-127 transcoding), this
-  // is a POST with the date range in the JSON body, not a GET with
-  // query params — the range is a closed-open interval, so endTime is
-  // the START of the day AFTER the last day we want included.
-  const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints:dailyRollUp`;
+  // Using :rollUp instead of :dailyRollUp — dailyRollUp expects an
+  // undocumented civil-time interval shape we couldn't pin down
+  // reliably (this API is only weeks old). :rollUp's request/response
+  // shape is directly confirmed from Google's own official example, so
+  // we use physical time here with a single windowSize spanning the
+  // whole requested range, which gives us one rolled-up total instead
+  // of per-day breakdowns — functionally equivalent for our purposes.
+  const url = `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints:rollUp`;
   const startTime = `${startDate}T00:00:00Z`;
   const dayAfterEnd = new Date(endDate + "T00:00:00Z");
   dayAfterEnd.setUTCDate(dayAfterEnd.getUTCDate() + 1);
   const endTime = dayAfterEnd.toISOString();
+  const windowSizeSeconds = Math.round((dayAfterEnd.getTime() - new Date(startTime).getTime()) / 1000);
 
   const res = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ range: { startTime, endTime } }),
+    body: JSON.stringify({ range: { startTime, endTime }, windowSize: `${windowSizeSeconds}s` }),
   });
   if (!res.ok) throw new Error(`${dataType} fetch failed: ${res.status} ${await res.text()}`);
   return res.json();
