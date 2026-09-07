@@ -1089,12 +1089,16 @@ export default function App() {
     const trip = await saveTrip(user.uid, {
       origin: form.origin,
       destination: form.destination,
+      destinationLabel: destinationLabel || form.destination,
       departDate: form.departDate,
       returnDate: form.returnDate,
       travelers: form.travelers,
       total: budget.total,
       flightTotal: selectedFlight?.totalAmount ?? null,
       flightAirline: selectedFlight?.airline ?? null,
+      itineraryPlan: itineraryPlan || [],
+      interests,
+      cuisine: cuisine || null,
     });
     setTrips((prev) => [trip, ...prev]);
     setSaveStatus("Trip saved.");
