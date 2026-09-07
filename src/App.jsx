@@ -28,6 +28,7 @@ import { createGroupTrip, listMyGroupTrips } from "./lib/groupTrips.js";
 import { createTravelGroup, listTravelGroups, deleteTravelGroup, setTravelGroupActive, updateTravelGroup } from "./lib/travelGroups.js";
 import { useInvites, detectContactMethod } from "./lib/invites.js";
 import { sha256Hex } from "./lib/hash.js";
+import TripHealthDashboard from "./components/TripHealthDashboard.jsx";
 
 const TABS = [
   { id: "search", label: "Flights & Stays" },
@@ -35,6 +36,7 @@ const TABS = [
   { id: "itinerary", label: "Itinerary" },
   { id: "pilgrimage", label: "Pilgrimage" },
   { id: "group", label: "Group Travel" },
+  { id: "health", label: "Trip Health" },
   { id: "nearby", label: "Nearby" },
   { id: "account", label: "Account" },
 ];
@@ -2756,6 +2758,17 @@ export default function App() {
             )}
           </>
         )}
+      </section>
+
+      {/* ===================== TRIP HEALTH ===================== */}
+      <section className="panel wrap" style={{ display: activeTab === "health" ? "block" : "none" }}>
+        <div className="panel-head">
+          <div>
+            <h2>My Trip Health</h2>
+            <p>Steps, distance, and floors for this trip — see it daily, weekly, or trip-wide, and turn it into a friendly competition with your group.</p>
+          </div>
+        </div>
+        <TripHealthDashboard />
       </section>
 
       {/* ===================== PILGRIMAGE ===================== */}
