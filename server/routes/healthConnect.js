@@ -142,7 +142,7 @@ router.get("/activity", async (req, res) => {
       fetchDailyRollup(accessToken, "steps", startDate, endDate),
       fetchDailyRollup(accessToken, "distance", startDate, endDate),
       fetchDailyRollup(accessToken, "floors", startDate, endDate),
-      fetchDailyRollup(accessToken, "totalCalories", startDate, endDate),
+      fetchDailyRollup(accessToken, "total-calories", startDate, endDate),
     ]);
     res.json({ connected: true, steps, distance, floors, calories });
   } catch (err) {
