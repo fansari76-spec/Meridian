@@ -641,9 +641,14 @@ export default function App() {
       // No destination named — hand off to the destination recommender,
       // pre-filled with whatever preference signals we just extracted,
       // and run it immediately instead of making them click again.
+      const resolvedContinents = trip.continents?.length ? trip.continents : recContinents;
+      const resolvedRegion = trip.region && trip.region !== "Anywhere" ? trip.region : recRegion;
+
       setForm((f) => ({ ...f, departDate, returnDate, travelers: trip.travelers || f.travelers }));
       setRecBudgetStyle(trip.budgetStyle || "");
       setRecMonth(monthNameFromDate(trip.departDate) || "");
+      setRecContinents(resolvedContinents);
+      setRecRegion(resolvedRegion);
       setConversationalParseStatus("No destination yet — let me suggest some real options based on what you told me…");
       setShowConversationalEntry(false);
       setShowDestinationRecommender(true);
@@ -653,8 +658,8 @@ export default function App() {
       const recData = await recommendDestinations({
         budgetStyle: trip.budgetStyle || null,
         month: monthNameFromDate(trip.departDate),
-        region: recRegion,
-        continents: recContinents,
+        region: resolvedRegion,
+        continents: resolvedContinents,
         interests: trip.interests?.length ? trip.interests : interests,
         cuisine: trip.cuisine || cuisine,
         travelParty: trip.travelParty || null,
