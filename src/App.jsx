@@ -29,6 +29,9 @@ import { createTravelGroup, listTravelGroups, deleteTravelGroup, setTravelGroupA
 import { useInvites, detectContactMethod } from "./lib/invites.js";
 import { sha256Hex } from "./lib/hash.js";
 import TripHealthDashboard from "./components/TripHealthDashboard.jsx";
+import VoiceCommandButton from "./components/VoiceCommandButton.jsx";
+import { useVoiceCommand } from "./lib/useVoiceCommand.js";
+import { useHealthConnect } from "./lib/useHealthConnect.js";
 
 const TABS = [
   { id: "search", label: "Flights & Stays" },
@@ -533,6 +536,9 @@ export default function App() {
   const [recContinents, setRecContinents] = useState([]);
   const [destinationLabel, setDestinationLabel] = useState(""); // real city name, e.g. "Interlaken, Switzerland" — used for hotels/weather/itinerary instead of decoding the airport code
   const isAiRequestInFlightRef = useRef(false); // guards handleGetDestinationIdeas and handleParseConversationalTrip against a double-fire (double-click, etc.) triggering two identical, expensive AI calls at once
+  const { classify: classifyVoiceCommand } = useVoiceCommand();
+  const { startConnect: startHealthConnect } = useHealthConnect();
+  const [voiceStatus, setVoiceStatus] = useState("");
   const [destinationResults, setDestinationResults] = useState(null);
   const [destinationRecStatus, setDestinationRecStatus] = useState("");
   const [showConversationalEntry, setShowConversationalEntry] = useState(true);
@@ -1749,8 +1755,114 @@ export default function App() {
     await dismissPing(pingId);
   }
 
+  async function handleVoiceCommand(transcript) {
+    setVoiceStatus("Thinking…");
+    const result = await classifyVoiceCommand(transcript, { page: activeTab, currentActivities: [] });
+    if (!result) {
+      setVoiceStatus("Couldn't understand that — try again.");
+      setTimeout(() => setVoiceStatus(""), 4000);
+      return;
+    }
+
+    const { action, params = {}, confirmationText, reason } = result;
+
+    switch (action) {
+      case "navigate":
+        if (params.tabId) setActiveTab(params.tabId);
+        break;
+
+      case "search_flights": {
+        const updatedForm = {
+          ...form,
+          destination: params.airportCode || form.destination,
+          departDate: params.departDate || form.departDate,
+          returnDate: params.returnDate || form.returnDate,
+        };
+        if (params.departDate && !params.returnDate && params.tripLengthDays) {
+          const d = new Date(params.departDate + "T00:00:00");
+          d.setDate(d.getDate() + params.tripLengthDays);
+          updatedForm.returnDate = d.toISOString().slice(0, 10);
+        }
+        setForm(updatedForm);
+        if (params.destination) setDestinationLabel(params.destination);
+        setActiveTab("search");
+        if (params.airportCode) {
+          const passengers = buildPassengersForSearch();
+          const data = await search({ ...updatedForm, passengers, travelers: passengers.length });
+          if (data?.primary?.offers?.length) {
+            setSelectedFlight(data.primary.offers[0]);
+            setSelectedFlexOffset(null);
+          }
+        }
+        break;
+      }
+
+      case "update_preferences":
+        setPrefs((p) => ({
+          ...p,
+          travelParty: params.travelParty || p.travelParty,
+          pace: params.pace || p.pace,
+          budgetStyle: params.budgetStyle || p.budgetStyle,
+          stayType: params.stayType || p.stayType,
+          flightPriority: params.flightPriority || p.flightPriority,
+          occasion: params.occasion || p.occasion,
+          dietaryRestrictions: params.dietaryRestrictions?.length ? params.dietaryRestrictions : p.dietaryRestrictions,
+        }));
+        if (params.interests?.length) setInterests(params.interests);
+        if (params.cuisine) setCuisine(params.cuisine);
+        break;
+
+      case "get_destination_ideas": {
+        setRecBudgetStyle(params.budgetStyle || "");
+        setRecMonth(params.month || "");
+        setRecContinents(params.continents || []);
+        setRecRegion(params.region || "Anywhere");
+        setActiveTab("search");
+        setShowDestinationRecommender(true);
+        setDestinationRecStatus("Thinking of some real options…");
+        setDestinationResults(null);
+        const recData = await recommendDestinations({
+          budgetStyle: params.budgetStyle || null,
+          month: params.month || null,
+          region: params.region || "Anywhere",
+          continents: params.continents || [],
+          interests: params.interests?.length ? params.interests : interests,
+          cuisine: cuisine,
+          travelParty: prefs.travelParty || null,
+          pace: prefs.pace || null,
+          dietaryRestrictions: prefs.dietaryRestrictions || [],
+        });
+        if (recData) {
+          setDestinationResults(recData.destinations);
+          setDestinationRecStatus(recData.usedAI ? "" : (recData.warning || ""));
+        }
+        break;
+      }
+
+      case "connect_health":
+        setActiveTab("health");
+        if (user) startHealthConnect(user.uid);
+        break;
+
+      case "rsvp":
+        setVoiceStatus("RSVP by voice only works on a Group Trip page right now.");
+        setTimeout(() => setVoiceStatus(""), 4000);
+        return;
+
+      case "unknown":
+      default:
+        setVoiceStatus(reason || "Not sure how to do that yet.");
+        setTimeout(() => setVoiceStatus(""), 4000);
+        return;
+    }
+
+    setVoiceStatus(confirmationText || "Done.");
+    setTimeout(() => setVoiceStatus(""), 4000);
+  }
+
   return (
     <>
+      <VoiceCommandButton onTranscript={handleVoiceCommand} statusText={voiceStatus} />
       <header className="top">
         <div className="topbar">
           <div className="brand"><img src="/logo.png" alt="TripAmi" className="brand-logo-img" /></div>
