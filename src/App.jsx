@@ -459,6 +459,7 @@ export default function App() {
   const [recMonth, setRecMonth] = useState("");
   const [recRegion, setRecRegion] = useState("Anywhere");
   const [recContinents, setRecContinents] = useState([]);
+  const [destinationLabel, setDestinationLabel] = useState(""); // real city name, e.g. "Interlaken, Switzerland" — used for hotels/weather/itinerary instead of decoding the airport code
   const [destinationResults, setDestinationResults] = useState(null);
   const [destinationRecStatus, setDestinationRecStatus] = useState("");
   const [showConversationalEntry, setShowConversationalEntry] = useState(true);
@@ -528,6 +529,7 @@ export default function App() {
   const handleUseRecommendedDestination = async (dest) => {
     const updatedForm = { ...form, destination: dest.airportCode };
     setForm(updatedForm);
+    setDestinationLabel(dest.name);
     setOriginSource("manual");
     setShowDestinationRecommender(false);
     setDestinationResults(null);
@@ -627,6 +629,7 @@ export default function App() {
         travelers: trip.travelers || form.travelers,
       };
       setForm(updatedForm);
+      setDestinationLabel(trip.destinationName || "");
       setOriginSource("manual");
       setConversationalParseStatus(`Got it — planning your trip to ${trip.destinationName}. Searching flights and hotels now…`);
       setShowConversationalEntry(false);
@@ -874,20 +877,20 @@ export default function App() {
 
   // Fetch stays once on load and whenever the destination or dates change.
   useEffect(() => {
-    searchStays(form.destination, {
+    searchStays(destinationLabel || form.destination, {
       checkIn: form.departDate,
       checkOut: form.returnDate,
       travelers: form.travelers,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.destination, form.departDate, form.returnDate, form.travelers]);
+  }, [form.destination, destinationLabel, form.departDate, form.returnDate, form.travelers]);
 
   // Weather is free (no API key), so fetch it eagerly whenever the
   // destination or dates change — same trigger as the stays search.
   useEffect(() => {
-    fetchForecast({ destination: form.destination, startDate: form.departDate, endDate: form.returnDate });
+    fetchForecast({ destination: destinationLabel || form.destination, startDate: form.departDate, endDate: form.returnDate });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.destination, form.departDate, form.returnDate]);
+  }, [form.destination, destinationLabel, form.departDate, form.returnDate]);
 
   // Regenerate the itinerary whenever destination, interests, cuisine,
   // preferences, or trip length change — debounced slightly so rapid
@@ -895,7 +898,7 @@ export default function App() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       generateItineraryAI({
-        destination: form.destination,
+        destination: destinationLabel || form.destination,
         days: Math.min(nightsFromDates(form.departDate, form.returnDate), 5),
         interests,
         cuisine: cuisine || null,
@@ -1823,7 +1826,7 @@ export default function App() {
               <label>From → To (airport codes)</label>
               <div style={{ display: "flex", gap: 8 }}>
                 <input value={form.origin} onChange={(e) => { setForm({ ...form, origin: e.target.value.toUpperCase() }); setOriginSource("manual"); }} maxLength={3} style={{ width: 70 }} />
-                <input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value.toUpperCase() })} maxLength={3} style={{ width: 70 }} />
+                <input value={form.destination} onChange={(e) => { setForm({ ...form, destination: e.target.value.toUpperCase() }); setDestinationLabel(""); }} maxLength={3} style={{ width: 70 }} />
               </div>
             </div>
             <div className="field">
