@@ -24,7 +24,7 @@ const DEMO_DATA = {
     dayLabel: "Day 3 in Lisbon",
     steps: 14200,
     stepGoal: 10000,
-    distanceKm: 9.8,
+    distanceMiles: 6.1,
     distanceTrend: 12,
     floors: 12,
     floorsTrend: -3,
@@ -37,7 +37,7 @@ const DEMO_DATA = {
     dayLabel: "This week in Lisbon",
     steps: 68400,
     stepGoal: 70000,
-    distanceKm: 47.2,
+    distanceMiles: 29.3,
     distanceTrend: 6,
     floors: 58,
     floorsTrend: 4,
@@ -50,7 +50,7 @@ const DEMO_DATA = {
     dayLabel: "Whole trip, Portugal",
     steps: 112900,
     stepGoal: 100000,
-    distanceKm: 78.6,
+    distanceMiles: 48.8,
     distanceTrend: 18,
     floors: 96,
     floorsTrend: 22,
@@ -235,7 +235,7 @@ export default function TripHealthDashboard() {
 
       {/* Stat tiles row, below the ring */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
-        <StatTile icon="📏" label="Distance" value={data.distanceKm} unit="km" trend={data.distanceTrend} />
+        <StatTile icon="📏" label="Distance" value={data.distanceMiles} unit="mi" trend={data.distanceTrend} />
         <StatTile icon="🏢" label="Floors climbed" value={data.floors} unit="floors" trend={data.floorsTrend} />
         <StatTile icon="🔥" label="Calories" value={data.calories.toLocaleString()} unit="kcal" trend={data.caloriesTrend} />
         <StatTile icon="⏱️" label="Active time" value={data.activeMinutes} unit="min" trend={data.activeMinutesTrend} />
