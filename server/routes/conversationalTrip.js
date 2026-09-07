@@ -97,10 +97,11 @@ Allowed values (use EXACTLY these strings, or null if not mentioned/unclear):
 
 Use web search to verify any named destination is real and to find its main international airport's 3-letter IATA code, and to resolve relative dates (e.g. "the second week of November", "next month") against today's actual date into real YYYY-MM-DD dates.
 
-IMPORTANT on destinationKnown vs namedExample: distinguish a FIRM decision from a NAMED EXAMPLE offered alongside real openness to alternatives.
+IMPORTANT on destinationKnown vs namedExamples: distinguish a FIRM decision from NAMED EXAMPLES offered alongside real openness to alternatives.
 - Set destinationKnown to TRUE only for a firm, singular decision with no hedging language ("I want to go to Interlaken", "we're going to Interlaken").
-- If they name a specific real place but ALSO signal openness to alternatives ("Interlaken or somewhere else", "maybe Interlaken, or somewhere similar", "Interlaken or another scenic spot in Europe"), set destinationKnown to FALSE, and instead put that named place in "namedExample" below — this guarantees it gets included as one of several real options to compare, rather than being silently discarded OR forced as the only choice.
-- Only leave namedExample null when truly no specific place was mentioned at all (e.g. "somewhere warm", "I don't know where to go").
+- If they name one OR MORE specific real places while ALSO signaling openness to alternatives ("Interlaken or somewhere else", "maybe Bali, or Paris, or somewhere similar"), set destinationKnown to FALSE, and put EVERY specific real place they named (that they didn't explicitly rule out) into "namedExamples" as an array — this guarantees each one gets included as one of several real options to compare, rather than being silently discarded.
+- If they explicitly rule a place OUT ("besides Paris", "not Paris", "anywhere but Paris"), put that place in "excludedDestinations" instead, and do NOT include it in namedExamples even if they also mentioned it earlier in the same message.
+- Only leave namedExamples empty when truly no specific place was mentioned at all (e.g. "somewhere warm", "I don't know where to go").
 
 Respond with ONLY a JSON object (no markdown fences, no preamble), in this exact shape:
 {
@@ -126,7 +127,8 @@ Respond with ONLY a JSON object (no markdown fences, no preamble), in this exact
   "otherNotes": "string or null — anything meaningful they said that doesn't fit another field",
   "continents": [],
   "region": "Anywhere",
-  "namedExample": "City, Country or null — see the destinationKnown rules above"
+  "namedExamples": [],
+  "excludedDestinations": []
 }
 
 Only fill a field if you're genuinely confident it was expressed or clearly implied — leave everything else null/empty rather than guessing.`;

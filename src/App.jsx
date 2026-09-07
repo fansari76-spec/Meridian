@@ -668,7 +668,8 @@ export default function App() {
         travelParty: trip.travelParty || null,
         pace: trip.pace || null,
         dietaryRestrictions: trip.dietaryRestrictions?.length ? trip.dietaryRestrictions : [],
-        mustInclude: trip.namedExample || null,
+        mustInclude: trip.namedExamples || [],
+        exclude: trip.excludedDestinations || [],
       });
       if (!recData) {
         setDestinationRecStatus(destinationRecError || "Couldn't get destination ideas — try again in a moment.");

@@ -37,12 +37,13 @@ router.post("/recommend", async (req, res) => {
     travelParty = null,
     pace = null,
     dietaryRestrictions = [],
-    mustInclude = null,
+    mustInclude = [],
+    exclude = [],
   } = req.body;
 
   try {
     if (isLiveMode()) {
-      const destinations = await recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude });
+      const destinations = await recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude, exclude });
       return res.json({ destinations, usedAI: true });
     }
     return res.json({ destinations: fallbackDestinations(), usedAI: false });
@@ -56,8 +57,8 @@ router.post("/recommend", async (req, res) => {
   }
 });
 
-async function recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude }) {
-  const prompt = buildPrompt({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude });
+async function recommendWithClaude({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude, exclude }) {
+  const prompt = buildPrompt({ budgetStyle, month, region, continents, interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude, exclude });
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -83,9 +84,12 @@ async function recommendWithClaude({ budgetStyle, month, region, continents, int
   return parsed;
 }
 
-function buildPrompt({ budgetStyle, month, region, continents = [], interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude }) {
-  const mustIncludeConstraint = mustInclude
-    ? `The traveler specifically mentioned ${mustInclude} as an option they're considering. You MUST include it as one of the destinations below (verify it's a genuinely good real fit and give it an honest matchReason/timing like any other pick) — do not drop it. Fill the remaining slots with other real, distinct alternatives so they have something to compare it against.`
+function buildPrompt({ budgetStyle, month, region, continents = [], interests, cuisine, travelParty, pace, dietaryRestrictions, mustInclude = [], exclude = [] }) {
+  const mustIncludeConstraint = mustInclude.length
+    ? `The traveler specifically mentioned these as options they're considering: ${mustInclude.join(", ")}. You MUST include EVERY one of them as one of the destinations below (verify each is a genuinely good real fit and give each an honest matchReason/timing like any other pick) — do not drop any of them, even if you'd have to fill fewer additional slots with other alternatives.`
+    : "";
+  const excludeConstraint = exclude.length
+    ? `The traveler explicitly ruled these out — do NOT suggest any of them: ${exclude.join(", ")}.`
     : "";
   const isDomestic = region === "Domestic (US) only";
   const continentConstraint = !isDomestic && continents.length
@@ -101,6 +105,7 @@ Travel timing: ${month || "flexible, no specific month"}.
 Region preference: ${region}.
 ${continentConstraint}
 ${mustIncludeConstraint}
+${excludeConstraint}
 Stated interests: ${interests.length ? interests.join(", ") : "no strong preference, suggest a good variety"}.
 Cuisine preference: ${cuisine || "none specified"}.
 ${travelParty ? `Traveling as: ${travelParty} — factor this into suitability.` : ""}
